@@ -18,13 +18,18 @@ class DrmError extends UserError {
 
 export const isMpd = (text) => /<MPD[\s>]/.test(text.slice(0, 4096));
 
-function pickVariants(manifest) {
-  const video = [...manifest.playlists].sort((a, b) => (b.attributes.BANDWIDTH ?? 0) - (a.attributes.BANDWIDTH ?? 0))[0];
+// The best video no taller than `maxHeight` (else the smallest) and the best
+// audio; `audioOnly` keeps just the audio when there is a separate one.
+function pickVariants(manifest, { maxHeight = Infinity, audioOnly = false } = {}) {
+  const height = (p) => p.attributes.RESOLUTION?.height ?? 0;
+  const byBandwidth = [...manifest.playlists].sort((a, b) => (b.attributes.BANDWIDTH ?? 0) - (a.attributes.BANDWIDTH ?? 0));
+  let video = byBandwidth.find((p) => height(p) <= maxHeight) ?? byBandwidth.sort((a, b) => height(a) - height(b))[0];
   const audioPlaylists = Object.values(manifest.mediaGroups?.AUDIO ?? {})
     .flatMap((group) => Object.values(group))
     .sort((a, b) => Number(b.default) - Number(a.default))
     .flatMap((rendition) => rendition.playlists ?? []);
   const audio = audioPlaylists.sort((a, b) => (b.attributes.BANDWIDTH ?? 0) - (a.attributes.BANDWIDTH ?? 0))[0];
+  if (audioOnly && audio) video = undefined;
   for (const p of [video, audio]) {
     if (p?.contentProtection && Object.keys(p.contentProtection).length) throw new DrmError();
   }
@@ -93,7 +98,7 @@ function mediaPlaylist(playlist, sequences) {
   return lines.join("\n") + "\n";
 }
 
-export function dashSource(mpdUrl, firstText, fetchInit) {
+export function dashSource(mpdUrl, firstText, fetchInit, sourceOptions, quality) {
   let text = firstText;
   let fetchedAt = Date.now();
   let serverOffset = 0;
@@ -108,7 +113,7 @@ export function dashSource(mpdUrl, firstText, fetchInit) {
       if (date) serverOffset = date - fetchedAt;
     }
     const manifest = parse(text, { manifestUri: mpdUrl, NOW: Date.now(), clientOffset: serverOffset });
-    const variants = pickVariants(manifest);
+    const variants = pickVariants(manifest, quality);
     if (!variants.video && !variants.audio) throw new UserError("errMpdNoTracks");
     await Promise.all([resolveSidx(variants.video, fetchInit), resolveSidx(variants.audio, fetchInit)]);
     return variants;
@@ -117,7 +122,7 @@ export function dashSource(mpdUrl, firstText, fetchInit) {
   const playlistBytes = (s) => new BufferSource(new TextEncoder().encode(s));
 
   return new CustomPathedSource(`${VIRTUAL}master.m3u8`, async ({ path }) => {
-    if (!path.startsWith(VIRTUAL)) return new UrlSource(path, { requestInit: fetchInit });
+    if (!path.startsWith(VIRTUAL)) return new UrlSource(path, sourceOptions);
     const variants = await load();
     switch (path.slice(VIRTUAL.length)) {
       case "master.m3u8":

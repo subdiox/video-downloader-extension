@@ -5,6 +5,7 @@ A Chrome extension (Manifest V3) that saves the videos playing on the current pa
 - Plain video files (MP4, WebM, …)
 - HLS (MPEG-TS / fMP4, AES-128, separate audio tracks, live)
 - DASH (SegmentTemplate / SegmentList / SegmentBase, live)
+- Players without a manifest that fetch whole media files in pieces (TikTok, Instagram, Facebook, bilibili, …): the video and audio files they fetched are merged
 - YouTube, the way yt-dlp does it: best video + best audio merged, live streams included (full edition only)
 
 Streams are saved as a single MP4 with video and audio merged, copied without re-encoding. No ffmpeg needed.
@@ -44,12 +45,15 @@ Click the toolbar button to list the videos on the current page, including embed
 
 - Each video shows a thumbnail, title, type (MP4 / HLS / DASH), resolution, length and whether it is playing. Hovering an item outlines that video on the page.
 - The title is editable and becomes the file name.
-- Players fed through `blob:` (MSE) are paired with the HLS / DASH manifests their frame loaded. If one is missing, start playback and reopen the popup.
+- Pick a quality per download: best, a maximum height (1080p, 720p, …) or audio only (saved as `.m4a`). The last choice is remembered. Players without a manifest can only save what they fetched.
+- Players fed through `blob:` or `srcObject` (MSE) are paired with the HLS / DASH manifests their frame loaded, or else with the media files it fetched (only files as long as that player's video are used, so preloaded neighbours and ads are left out). If nothing is found, start playback and reopen the popup.
 - DRM-protected streams are listed with their buttons disabled.
 - Live streams can be recorded from now (the live edge) or rewound as far as the stream allows (its DVR window; YouTube DVR streams from their very start). Stop and save from the downloads section.
 - Videos that look like ads (ad-server URLs, short clips covering the main player) are tagged and listed last.
 - YouTube: play the video in the tab for a moment before opening the popup; the extension reuses the PO token YouTube's own player minted. If YouTube refuses partway, play a little longer and try again.
 - On listing pages, the button at the bottom downloads every linked video.
+- Errors, recordings and finished downloads are reported as system notifications; clicking "Saved" shows the file.
+- Failed requests (network errors, 5xx, 429) are retried a few times with backoff.
 
 Files are saved to `Downloads/<title>.mp4` (Chrome numbers duplicates).
 
@@ -66,6 +70,10 @@ Files are saved to `Downloads/<title>.mp4` (Chrome numbers duplicates).
 | `src/offscreen/youtube-live.js` | YouTube live from the start, like yt-dlp's `--live-from-start` (DASH segments by sequence number) |
 | `src/sandbox/main.js` | Sandbox page where eval is allowed (runs YouTube's player JS for deciphering) |
 | `scripts/build.mjs` | Builds the full and store editions |
+
+## Development bridge
+
+`extension/` (not the packaged editions) carries a small bridge for testing in a real, logged-in Chrome profile: pages on `localhost` / `127.0.0.1` can call `chrome.runtime.sendMessage(<extension id>, { cmd, ... })` to reload the extension, open the popup for a tab and press its buttons, read the queue, progress and recent downloads, stop a recording, and delete test downloads. See the `#if dev` block in `extension/background.js`. The packaged builds drop it, together with the manifest's `externally_connectable`.
 
 Libraries: [Mediabunny](https://mediabunny.dev) (MPL-2.0), [mpd-parser](https://github.com/videojs/mpd-parser) and [mux.js](https://github.com/videojs/mux.js) (Apache-2.0; mux.js only for sidx parsing), [youtubei.js](https://github.com/LuanRT/YouTube.js) and [googlevideo](https://github.com/LuanRT/googlevideo) (MIT; googlevideo reads the PO token from the player's requests). Each build writes `dist/THIRD_PARTY_LICENSES.txt` with the license of every bundled package.
 

@@ -15,13 +15,22 @@
     "message": "Video Downloader (recording)",
     "description": "Toolbar button tooltip while a live stream records"
   },
-  "toastRefused": {
+  "notifyRefused": {
     "message": "Couldn't get the video (the server refused)",
-    "description": "Shown on the page"
+    "description": "Notification"
   },
-  "toastRecording": {
+  "notifyRecording": {
     "message": "Recording the live stream. Stop and save it from the extension's button",
-    "description": "Shown on the page"
+    "description": "Notification"
+  },
+  "notifySaved": {
+    "message": "Saved: $p1$",
+    "description": "Notification; click shows the file. $1: title",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
   },
   "errManifest": {
     "message": "Can't fetch the manifest (HTTP $p1$)",
@@ -52,6 +61,9 @@
   },
   "errNoTracks": {
     "message": "No tracks that can be converted"
+  },
+  "errNoAudio": {
+    "message": "This video has no audio"
   },
   "errNoData": {
     "message": "No data was received"
@@ -229,19 +241,31 @@
     "message": "File name to save as (editable)"
   },
   "btnRecordNow": {
-    "message": "Record from now"
+    "message": "Record now"
   },
   "btnRecordNowTip": {
     "message": "Records from the moment you press it"
   },
   "btnRecordRewind": {
-    "message": "Record from the start"
+    "message": "From start"
   },
   "btnRecordRewindTip": {
     "message": "Records from the oldest part the stream still keeps (some sites can't go back to the very start)"
   },
   "btnDownload": {
     "message": "Download"
+  },
+  "qualityTip": {
+    "message": "Quality",
+    "description": "Tooltip of the quality menu"
+  },
+  "qualityBest": {
+    "message": "Best",
+    "description": "Quality menu: highest available"
+  },
+  "qualityAudio": {
+    "message": "Audio only",
+    "description": "Quality menu: save audio as .m4a"
   },
   "noteNoStream": {
     "message": "No stream detected. Start playback, then reopen this popup"

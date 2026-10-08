@@ -18,6 +18,7 @@ Japanese localization (both come from `extension/_locales`, so the store shows t
 > - Video files such as MP4 and WebM
 > - HLS (including AES-128) and DASH streams, saved as one MP4 with video and audio merged (no re-encoding)
 > - Live-stream recording, from now or from as far back as the stream allows
+> - Choose the quality, or save the audio only
 > - Videos that look like ads are flagged, so the main video is easy to tell apart
 > - Download every video linked from a listing page at once
 >
@@ -38,11 +39,12 @@ Japanese localization (both come from `extension/_locales`, so the store shows t
 | Permission | Justification |
 |---|---|
 | `downloads` | Writes the saved video to the Downloads folder |
+| `notifications` | Tells the user when a download finishes or fails, or a recording starts |
 | `declarativeNetRequest` | Adds the page's Referer / Origin to the extension's own download requests, for video servers that require them |
 | `offscreen` | Merges streams into an MP4 in a windowless extension page |
 | `scripting` | When the popup opens, reads the page's video elements (URL, title, size) |
 | `storage` | Keeps the download queue and progress for the browser session |
-| `webRequest` | Finds the HLS / DASH manifest URLs a page loads (observe only; nothing is modified) |
+| `webRequest` | Finds the HLS / DASH manifests and media files a page loads (observe only; nothing is modified) |
 | Host permission `<all_urls>` | Videos can be on any site, and the extension has to read that site's videos and manifests |
 
 **Remote code**: No. All code ships in the package.

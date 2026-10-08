@@ -10,6 +10,9 @@
 //   <!-- #if youtube --> ... <!-- #endif -->   (HTML)
 // along with the YouTube modules, the sandbox page and its manifest entry,
 // and the yt_* messages in _locales.
+// Blocks marked `#if dev` (the development bridge, see background.js) and
+// the manifest's externally_connectable exist only in extension/ itself;
+// both packaged editions drop them.
 //
 // Every build also writes dist/THIRD_PARTY_LICENSES.txt: the license of each
 // npm package bundled into that edition, as their licenses require.
@@ -22,27 +25,27 @@ import * as esbuild from "esbuild";
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const extDir = path.join(root, "extension");
 
-const BLOCK = /^[ \t]*(?:\/\/ #if youtube|<!-- #if youtube -->)[ \t]*\n[\s\S]*?^[ \t]*(?:\/\/ #endif|<!-- #endif -->)[ \t]*\n/gm;
-const MARKER = /^[ \t]*(?:\/\/ #if youtube|\/\/ #endif|<!-- #if youtube -->|<!-- #endif -->)[ \t]*\n/gm;
+const BLOCK = /^[ \t]*(?:\/\/ #if (\w+)|<!-- #if (\w+) -->)[ \t]*\n([\s\S]*?)^[ \t]*(?:\/\/ #endif|<!-- #endif -->)[ \t]*\n/gm;
 
-function preprocess(text, youtube) {
-  const out = youtube ? text.replace(MARKER, "") : text.replace(BLOCK, "");
-  if (/#if youtube|#endif/.test(out)) throw new Error("unbalanced #if youtube / #endif");
+// Keeps the blocks whose flag is set (without their markers), drops the rest.
+function preprocess(text, flags) {
+  const out = text.replace(BLOCK, (_, js, html, body) => (flags[js ?? html] ? body : ""));
+  if (/#if \w+|#endif/.test(out)) throw new Error("unbalanced or nested #if / #endif");
   return out;
 }
 
 // Applies preprocess() to our own sources as esbuild loads them.
-const editionPlugin = (youtube) => ({
+const editionPlugin = (flags) => ({
   name: "edition",
   setup(build) {
     const src = path.join(root, "src") + path.sep;
     build.onLoad({ filter: /\.js$/ }, (args) =>
-      args.path.startsWith(src) ? { contents: preprocess(fs.readFileSync(args.path, "utf8"), youtube), loader: "js" } : undefined
+      args.path.startsWith(src) ? { contents: preprocess(fs.readFileSync(args.path, "utf8"), flags), loader: "js" } : undefined
     );
   },
 });
 
-function bundleOptions(outdir, youtube) {
+function bundleOptions(outdir, { youtube, dev }) {
   return {
     entryPoints: youtube
       ? { offscreen: "src/offscreen/main.js", sandbox: "src/sandbox/main.js" }
@@ -55,7 +58,7 @@ function bundleOptions(outdir, youtube) {
     legalComments: "none",
     metafile: true,
     outdir,
-    plugins: [editionPlugin(youtube)],
+    plugins: [editionPlugin({ youtube, dev })],
     logLevel: "info",
   };
 }
@@ -92,8 +95,8 @@ function thirdPartyLicenses(metafile) {
   );
 }
 
-async function bundle(outdir, youtube) {
-  const result = await esbuild.build(bundleOptions(outdir, youtube));
+async function bundle(outdir, flags) {
+  const result = await esbuild.build(bundleOptions(outdir, flags));
   fs.writeFileSync(path.join(outdir, "THIRD_PARTY_LICENSES.txt"), thirdPartyLicenses(result.metafile));
 }
 
@@ -117,13 +120,14 @@ function writeEdition(name, youtube) {
     } else if (entry.isDirectory()) fs.cpSync(from, to, { recursive: true, filter: (f) => !f.endsWith(".svg") });
     else if (entry.name === "manifest.json") {
       const manifest = JSON.parse(fs.readFileSync(from, "utf8"));
+      delete manifest.externally_connectable;
       if (!youtube) {
         delete manifest.sandbox;
         manifest.description = "__MSG_extDescription__";
       }
       fs.writeFileSync(to, JSON.stringify(manifest, null, 2) + "\n");
     } else if (/\.(js|html)$/.test(entry.name)) {
-      fs.writeFileSync(to, preprocess(fs.readFileSync(from, "utf8"), youtube));
+      fs.writeFileSync(to, preprocess(fs.readFileSync(from, "utf8"), { youtube, dev: false }));
     } else fs.copyFileSync(from, to);
   }
   return out;
@@ -134,7 +138,7 @@ if (args[0] === "package") {
   const { version } = JSON.parse(fs.readFileSync(path.join(extDir, "manifest.json"), "utf8"));
   for (const [name, youtube] of [["full", true], ["store", false]]) {
     const out = writeEdition(name, youtube);
-    await bundle(path.join(out, "dist"), youtube);
+    await bundle(path.join(out, "dist"), { youtube, dev: false });
     const zip = path.join(root, "build", `video-downloader-${name}-${version}.zip`);
     fs.rmSync(zip, { force: true });
     execFileSync("zip", ["-qr", zip, "."], { cwd: out });
@@ -142,6 +146,7 @@ if (args[0] === "package") {
   }
 } else {
   const outdir = path.join(extDir, "dist");
-  if (args.includes("--watch")) await (await esbuild.context(bundleOptions(outdir, true))).watch();
-  else await bundle(outdir, true);
+  const flags = { youtube: true, dev: true };
+  if (args.includes("--watch")) await (await esbuild.context(bundleOptions(outdir, flags))).watch();
+  else await bundle(outdir, flags);
 }

@@ -62,6 +62,7 @@ function filePath(job, ext) {
 // Jobs downloaded by the offscreen document (sharing its Referer/Origin rule).
 const OFFSCREEN_KINDS = [
   "stream",
+  "media",
   // #if youtube
   "youtube",
   // #endif
@@ -131,19 +132,19 @@ async function ensureOffscreen() {
 // nest) or plain text.
 const t = (m) => (typeof m === "string" ? m : chrome.i18n.getMessage(m.key, m.substitutions.map(t)) || m.key);
 
-function toast(tabId, text) {
-  if (tabId == null) return;
-  return chrome.scripting.executeScript({ target: { tabId }, func: showToast, args: [text] }).catch(() => {});
+// System notifications reach the user on any page (a script injected into the
+// page could not run on the Web Store, PDFs or chrome:// pages). A "saved"
+// notification is named after its download, so a click can reveal the file.
+function notify(message, downloadId) {
+  const id = downloadId != null ? `saved:${downloadId}` : "";
+  chrome.notifications.create(id, { type: "basic", iconUrl: "icons/icon128.png", title: chrome.i18n.getMessage("extName"), message });
 }
 
-function showToast(text) {
-  const el = document.createElement("div");
-  el.textContent = text;
-  el.style.cssText =
-    "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483647;background:#000d;color:#fff;padding:8px 14px;border-radius:6px;font:13px system-ui,sans-serif";
-  document.documentElement.append(el);
-  setTimeout(() => el.remove(), 4000);
-}
+chrome.notifications.onClicked.addListener((id) => {
+  const downloadId = Number(id.match(/^saved:(\d+)$/)?.[1]);
+  if (downloadId) chrome.downloads.show(downloadId);
+  chrome.notifications.clear(id);
+});
 
 // --- Queue ---------------------------------------------------------------
 
@@ -197,7 +198,18 @@ async function startStream(state, job, ruleInPlace) {
     poBodies = (ytBodies[job.sourceTabId] ?? []).filter((b) => b.page === job.pageUrl).map((b) => b.body);
   }
   // #endif
-  chrome.runtime.sendMessage({ target: "offscreen", type: job.kind, key: job.url, url: job.url, liveFrom: job.liveFrom, poBodies });
+  chrome.runtime.sendMessage({
+    target: "offscreen",
+    type: job.kind,
+    key: job.url,
+    url: job.url,
+    liveFrom: job.liveFrom,
+    quality: job.quality,
+    plain: job.plain,
+    candidates: job.candidates,
+    duration: job.duration,
+    poBodies,
+  });
 }
 
 async function releaseTab(entry) {
@@ -267,6 +279,7 @@ chrome.downloads.onChanged.addListener((delta) => {
     if (!url) return;
     const entry = state.active[url];
     if (current === "interrupted") console.warn("download interrupted", entry.job, delta.error?.current);
+    else notify(chrome.i18n.getMessage("notifySaved", entry.job.title), delta.id);
     if (entry.downloadIds) {
       entry.downloadIds = entry.downloadIds.filter((id) => id !== delta.id);
       if (entry.downloadIds.length) return;
@@ -283,7 +296,7 @@ chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
     const url = findActive(state, (e) => e.tabId === tabId && e.downloadId == null);
     if (!url) return;
     console.error("not a download", state.active[url].job, tab.url);
-    toast(state.active[url].job.sourceTabId, chrome.i18n.getMessage("toastRefused"));
+    notify(chrome.i18n.getMessage("notifyRefused"));
     await finish(state, url);
   });
 });
@@ -300,7 +313,7 @@ chrome.runtime.onMessage.addListener((message) => {
         const entry = state.active[message.key];
         if (!entry) return;
         entry.live = true;
-        toast(entry.job.sourceTabId, chrome.i18n.getMessage("toastRecording"));
+        notify(chrome.i18n.getMessage("notifyRecording"));
         await pump(state);
       });
       break;
@@ -323,7 +336,7 @@ chrome.runtime.onMessage.addListener((message) => {
         const entry = state.active[message.key];
         if (!entry) return;
         console.error("stream failed", entry.job, message.error);
-        toast(entry.job.sourceTabId, t(message.error));
+        notify(t(message.error));
         await finish(state, message.key);
       });
       break;
@@ -333,28 +346,65 @@ chrome.runtime.onMessage.addListener((message) => {
 // --- Stream detection ---------------------------------------------------
 // Players that use MSE expose only a blob: URL, so remember every HLS/DASH
 // manifest each tab loads and pick one when the user asks for a download.
+//
+// Players without a manifest (TikTok, bilibili, Instagram, …) fetch whole
+// media files piece by piece, by Range header or by byte-range query
+// parameters. Those files are remembered too ("media"), with their total
+// size; the offscreen document later picks the ones matching the player.
 
-let streamsLock = Promise.resolve();
-function withStreams(fn) {
-  const run = streamsLock.then(async () => {
-    const { streams = {} } = await chrome.storage.session.get("streams");
-    fn(streams);
-    await chrome.storage.session.set({ streams });
+const sessionLocks = {};
+// Read-modify-write of one storage.session key, serialized per key.
+function withSession(key, fn) {
+  const run = (sessionLocks[key] ?? Promise.resolve()).then(async () => {
+    const { [key]: value = {} } = await chrome.storage.session.get(key);
+    fn(value);
+    await chrome.storage.session.set({ [key]: value });
   });
-  streamsLock = run.catch(() => {});
+  sessionLocks[key] = run.catch(() => {});
   return run;
+}
+const withStreams = (fn) => withSession("streams", fn);
+const withMedia = (fn) => withSession("media", fn);
+
+// Query parameters some CDNs (Facebook, Instagram) use instead of a Range header.
+const BYTE_RANGE_PARAMS = ["bytestart", "byteend", "range"];
+// Small enough for a short clip's audio track; segments that slip through are
+// dropped later because their length does not match the player's.
+const MIN_MEDIA_FILE = 32 * 1024;
+
+function mediaFile(d, type) {
+  if (/mpegurl|dash\+xml|mp2t/i.test(type)) return null;
+  const url = new URL(d.url);
+  const isMedia = /^(video|audio)\//i.test(type) || (/octet-stream/i.test(type) && /\.(mp4|m4s|m4a|m4v|webm)$/i.test(url.pathname));
+  if (!isMedia || /\.ts$/i.test(url.pathname)) return null;
+  const header = (name) => d.responseHeaders?.find((h) => h.name.toLowerCase() === name)?.value;
+  const size = Number(header("content-range")?.split("/")[1]) || (d.statusCode === 200 ? Number(header("content-length")) : 0);
+  if (!(size >= MIN_MEDIA_FILE)) return null;
+  for (const p of BYTE_RANGE_PARAMS) url.searchParams.delete(p);
+  return { url: url.href, frameId: d.frameId, size, type: type.split(";")[0], time: d.timeStamp };
 }
 
 chrome.webRequest.onHeadersReceived.addListener(
   (d) => {
     if (d.tabId < 0 || d.statusCode >= 400) return;
     const type = d.responseHeaders?.find((h) => h.name.toLowerCase() === "content-type")?.value ?? "";
-    if (!isStreamType(type) && !isStreamUrl(d.url)) return;
-    withStreams((streams) => {
-      const list = (streams[d.tabId] ??= []);
-      if (list.some((s) => s.url === d.url)) return;
-      list.push({ url: d.url, frameId: d.frameId, initiator: d.initiator, time: d.timeStamp });
-      if (list.length > 30) list.splice(0, list.length - 30);
+    if (isStreamType(type) || isStreamUrl(d.url)) {
+      withStreams((streams) => {
+        const list = (streams[d.tabId] ??= []);
+        // A refetch (live playlists) keeps its place but counts as recent.
+        const seen = list.find((s) => s.url === d.url);
+        if (seen) return void (seen.time = d.timeStamp);
+        list.push({ url: d.url, frameId: d.frameId, initiator: d.initiator, time: d.timeStamp });
+        if (list.length > 30) list.splice(0, list.length - 30);
+      });
+      return;
+    }
+    const file = mediaFile(d, type);
+    if (!file) return;
+    withMedia((media) => {
+      // Most recently fetched first: the playing video keeps fetching.
+      const list = (media[d.tabId] ?? []).filter((m) => m.url !== file.url);
+      media[d.tabId] = [file, ...list].slice(0, 30);
     });
   },
   { urls: ["<all_urls>"], types: ["xmlhttprequest", "media", "other"] },
@@ -363,13 +413,29 @@ chrome.webRequest.onHeadersReceived.addListener(
 
 chrome.webRequest.onBeforeRequest.addListener(
   (d) => {
-    if (d.tabId >= 0) withStreams((streams) => delete streams[d.tabId]);
+    if (d.tabId < 0) return;
+    withStreams((streams) => delete streams[d.tabId]);
+    withMedia((media) => delete media[d.tabId]);
   },
   { urls: ["<all_urls>"], types: ["main_frame"] }
 );
 
+// Single-page apps (X, Instagram, …) change the URL without loading a
+// page: forget what the previous view fetched. A couple of seconds of slack
+// keeps a new view's own requests, which may land just before the URL changes.
+chrome.tabs.onUpdated.addListener((tabId, info) => {
+  if (!info.url) return;
+  const since = Date.now() - 2000;
+  const keep = (lists) => {
+    if (lists[tabId]) lists[tabId] = lists[tabId].filter((s) => s.time >= since);
+  };
+  withStreams(keep);
+  withMedia(keep);
+});
+
 chrome.tabs.onRemoved.addListener((tabId) => {
   withStreams((streams) => delete streams[tabId]);
+  withMedia((media) => delete media[tabId]);
   // #if youtube
   withYouTubeBodies((bodies) => delete bodies[tabId]);
   // #endif
@@ -449,7 +515,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // manifest may not end in .m3u8/.mpd).
     case "enqueue-one": {
       const j = message.job;
-      enqueue([{ ...makeJob(j), kind: j.kind, liveFrom: j.liveFrom }]).then((added) => sendResponse({ added }));
+      const job = { ...makeJob(j), kind: j.kind, liveFrom: j.liveFrom, quality: j.quality, candidates: j.candidates, duration: j.duration };
+      // Audio from a plain file: the offscreen document extracts it.
+      if (job.kind === "file" && job.quality?.audioOnly) Object.assign(job, { kind: "stream", plain: true });
+      enqueue([job]).then((added) => sendResponse({ added }));
       return true;
     }
     case "stop-live":
@@ -457,3 +526,72 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
   }
 });
+
+// #if dev
+// --- Development bridge --------------------------------------------------
+// extension/ only; packaged builds drop it. Pages on localhost drive the
+// extension through chrome.runtime.sendMessage(<extension id>, { cmd, ... }),
+// so it can be tested in a real, logged-in profile:
+//   reload                              reload the extension
+//   popup { tabId, click? }             open the popup for a tab, report its list;
+//                                       click: { index, button, quality }
+//   state { limit?, logs? }             queue, active jobs, latest downloads, notifications,
+//                                       progress, offscreen devLog() lines
+//   stop { key }                        stop a live recording and save it
+//   remove-downloads { ids }            delete test downloads (file and entry)
+
+const devPopups = new Map(); // id -> resolve(result)
+const devProgress = {}; // job key -> latest stream-progress message
+const devLogs = []; // offscreen devLog() lines and stream failures, newest last
+
+chrome.runtime.onMessageExternal.addListener((m, sender, sendResponse) => {
+  (async () => {
+    switch (m.cmd) {
+      case "reload":
+        setTimeout(() => chrome.runtime.reload(), 100);
+        return { ok: true };
+      case "popup": {
+        const id = crypto.randomUUID();
+        const params = new URLSearchParams({ tabId: m.tabId, dev: id, click: JSON.stringify(m.click ?? null) });
+        const result = new Promise((resolve) => devPopups.set(id, resolve));
+        const tab = await chrome.tabs.create({ url: chrome.runtime.getURL(`popup.html?${params}`), active: false });
+        const timeout = new Promise((resolve) => setTimeout(() => resolve({ error: "popup timeout" }), 60_000));
+        const out = await Promise.race([result, timeout]);
+        devPopups.delete(id);
+        chrome.tabs.remove(tab.id).catch(() => {});
+        return out;
+      }
+      case "state": {
+        const downloads = await chrome.downloads.search({ orderBy: ["-startTime"], limit: m.limit ?? 10 });
+        return {
+          ...(await chrome.storage.session.get(["queue", "active"])),
+          downloads: downloads.map((d) => ({ id: d.id, state: d.state, error: d.error, filename: d.filename, mime: d.mime, bytes: d.bytesReceived })),
+          notifications: await chrome.notifications.getAll(),
+          progress: devProgress,
+          logs: devLogs.slice(-(m.logs ?? 20)),
+        };
+      }
+      case "stop":
+        await chrome.runtime.sendMessage({ target: "offscreen", type: "stop", key: m.key }).catch(() => {});
+        return { ok: true };
+      case "remove-downloads":
+        for (const id of m.ids) {
+          await chrome.downloads.removeFile(id).catch(() => {});
+          await chrome.downloads.erase({ id });
+        }
+        return { ok: true };
+      default:
+        return { error: `unknown cmd ${m.cmd}` };
+    }
+  })().then(sendResponse, (e) => sendResponse({ error: String(e) }));
+  return true;
+});
+
+chrome.runtime.onMessage.addListener((m) => {
+  if (m.type === "stream-progress") devProgress[m.key] = { progress: m.progress, seconds: Math.round(m.seconds), bytes: m.bytes };
+  if (m.type === "dev-log") devLogs.push(m.text);
+  if (m.type === "stream-failed") devLogs.push(`failed: ${JSON.stringify(m.error)}`);
+  if (devLogs.length > 200) devLogs.splice(0, devLogs.length - 200);
+  if (m.type === "dev-popup") devPopups.get(m.id)?.(m.result);
+});
+// #endif

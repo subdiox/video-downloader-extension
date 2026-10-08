@@ -24,12 +24,34 @@ function inspectVideos() {
     return height || (/\b(4k|uhd)\b/i.test(label) ? 2160 : /\bfhd\b/i.test(label) ? 1080 : /\bhd\b/i.test(label) ? 720 : /\bsd\b/i.test(label) ? 480 : 0);
   };
   const clean = (text) => text?.replace(/\s+/g, " ").trim().slice(0, 150) || null;
-  const docTitle = clean(document.querySelector('meta[property="og:title"]')?.content) || clean(document.title);
+  // og:title, unless it is just the site's name (Twitch); then the page title.
+  // A leading unread count ("(12) ") and trailing site names (" - Twitch",
+  // "_哔哩哔哩_bilibili") are not part of the title.
+  const siteName = clean(document.querySelector('meta[property="og:site_name"]')?.content);
+  const hostLabel = location.hostname.split(".").at(-2) ?? "";
+  const isSiteName = (t) => !!t && [siteName, hostLabel].some((n) => n && t.toLowerCase() === n.toLowerCase());
+  function siteless(title) {
+    let t = title?.replace(/^\(\d+\+?\) /, "");
+    for (let i = 0; t && i < 3; i++) {
+      // "… on Twitch"
+      const on = t.match(/^(.+?) on (\S+)$/);
+      if (on && isSiteName(on[2])) {
+        t = on[1];
+        continue;
+      }
+      const m = t.match(/^(.+?)\s*[-|_–—:･・/]\s*([^-|_–—:･・/]+)$/);
+      if (!m || !isSiteName(m[2].trim()) && !/^(哔哩哔哩|ニコニコ動画)$/.test(m[2].trim())) break;
+      t = m[1];
+    }
+    return t || null;
+  }
+  const ogTitle = clean(document.querySelector('meta[property="og:title"]')?.content);
+  const docTitle = siteless(ogTitle && !isSiteName(ogTitle) ? ogTitle : clean(document.title));
 
   // Player UIs label their containers ("Video Player", "Playing in
   // picture-in-picture"), so container aria-labels are never used and such
   // generic labels on the <video> itself are ignored.
-  const generic = /^(video|video player|player|media|movie|動画|動画プレーヤー|プレーヤー)$|picture-in-picture|^playing\b/i;
+  const generic = /^(video|video player|embedded video|player|media|movie|動画|動画プレーヤー|プレーヤー|埋め込み動画)$|\bvideo player$|picture-in-picture|^playing\b/i;
   const label = (text) => {
     const t = clean(text);
     return t && !generic.test(t) ? t : null;
@@ -41,7 +63,8 @@ function inspectVideos() {
   function nearTitle(v) {
     let el = v.parentElement;
     for (let depth = 0; el && depth < 6; depth++, el = el.parentElement) {
-      const caption = el.querySelector("figcaption, h1, h2, h3, [class*='title' i]:not(script):not(style)");
+      // data-e2e="video-desc": TikTok's caption.
+      const caption = el.querySelector("figcaption, h1, h2, h3, [data-e2e='video-desc'], [class*='title' i]:not(script):not(style)");
       if (caption && !caption.contains(v)) {
         const text = label(caption.textContent);
         if (text) return text;
@@ -69,7 +92,9 @@ function inspectVideos() {
     const r = v.getBoundingClientRect();
     return {
       index,
-      src: (best && quality(best) && best.src) || v.currentSrc || v.src || best?.src || "",
+      // A MediaSource attached as srcObject (Facebook) leaves no URL at all;
+      // treat it like a blob: player.
+      src: (best && quality(best) && best.src) || v.currentSrc || v.src || best?.src || (v.srcObject ? "blob:srcObject" : ""),
       ownTitle: ownTitle(v),
       nearTitle: nearTitle(v),
       docTitle,
@@ -79,6 +104,10 @@ function inspectVideos() {
       duration: Number.isFinite(v.duration) ? v.duration : v.duration === Infinity ? Infinity : null,
       playing: !v.paused && !v.ended,
       area: r.width * r.height,
+      // On screen (any part in the viewport), and played at some point: the
+      // user's video, rather than a preview further down the page.
+      visible: r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth,
+      started: v.currentTime > 0,
       rect: { x: r.left, y: r.top, w: r.width, h: r.height },
       frameUrl: location.href,
     };
@@ -263,6 +292,9 @@ async function collectEntries() {
   );
   const videos = frames.flatMap((f) => (f.result ?? []).map((v) => ({ ...v, frameId: f.frameId })));
   const streams = await loadStreams();
+  // Media files fetched without a manifest, newest first (see background.js).
+  const { media = {} } = await chrome.storage.session.get("media");
+  const mediaFiles = media[tab.id] ?? [];
   const entries = [];
 
   for (const frameId of new Set([...videos.map((v) => v.frameId), ...streams.map((s) => s.frameId)])) {
@@ -282,8 +314,13 @@ async function collectEntries() {
       // #endif
       } else if (v.src.startsWith("blob:")) {
         // MSE players: pair the frame's videos with its manifests in load order.
+        // Without one, use the media files the frame fetched; the offscreen
+        // document keeps those as long as this player's video.
         const manifest = frameStreams.shift();
-        entries.push(manifest ? { kind: "stream", video: v, url: manifest.url, manifest } : { kind: "missing", video: v });
+        const candidates = mediaFiles.filter((m) => m.frameId === frameId).slice(0, 8).map((m) => m.url);
+        if (manifest) entries.push({ kind: "stream", video: v, url: manifest.url, manifest });
+        else if (candidates.length && v.duration > 0) entries.push({ kind: "media", video: v, url: candidates[0], candidates });
+        else entries.push({ kind: "missing", video: v });
       }
     }
     for (const manifest of frameStreams) entries.push({ kind: "stream", url: manifest.url, manifest });
@@ -360,12 +397,16 @@ async function collectEntries() {
         overlap(e.video.rect, o.video.rect)
     );
   for (const e of entries) e.ad = urlLooksLikeAd(e.url, e.video?.src, e.video?.frameUrl) || coversLonger(e);
-  // Main content first: not an ad, then live/longest, then playing, then largest.
+  // Main content first: not an ad, then playing, started, on screen (pages
+  // also hold previews of other, often longer videos), then live/longest,
+  // then largest.
   entries.sort(
     (a, b) =>
       a.ad - b.ad ||
-      lengthKey(b.duration) - lengthKey(a.duration) ||
       (b.video?.playing ?? 0) - (a.video?.playing ?? 0) ||
+      (b.video?.started ?? 0) - (a.video?.started ?? 0) ||
+      (b.video?.visible ?? 0) - (a.video?.visible ?? 0) ||
+      lengthKey(b.duration) - lengthKey(a.duration) ||
       (b.video?.area ?? 0) - (a.video?.area ?? 0)
   );
   return entries;
@@ -419,6 +460,44 @@ function tags(entry) {
   return out.map(([text, cls]) => el("span", { className: `tag ${cls ?? ""}`, textContent: text }));
 }
 
+// --- Quality ------------------------------------------------------------------
+// "best", "audio" or a maximum height ("720"); the last choice is remembered.
+
+const HEIGHTS = [2160, 1440, 1080, 720, 480, 360, 240];
+let qualityChoice = "best";
+try {
+  qualityChoice = (await chrome.storage.local.get("quality")).quality ?? "best";
+} catch {}
+
+const qualityFor = (choice) =>
+  choice === "audio" ? { audioOnly: true } : choice === "best" ? undefined : { maxHeight: Number(choice) };
+
+function qualitySelect(entry) {
+  // A file has one quality; for streams, offer the heights below the best one
+  // known.
+  let best = entry.manifest?.height || entry.video?.height || Infinity;
+  // #if youtube
+  // YouTube's <video> shows only what is playing, so offer every height.
+  if (entry.kind === "youtube") best = Infinity;
+  // #endif
+  // A media entry can only use what the player fetched.
+  const heights = entry.kind === "file" || entry.kind === "media" ? [] : HEIGHTS.filter((h) => h < best);
+  const choices = ["best", ...heights.map(String), "audio"];
+  const select = el(
+    "select",
+    { className: "quality", title: msg("qualityTip") },
+    ...choices.map((c) =>
+      el("option", { value: c, textContent: c === "best" ? msg("qualityBest") : c === "audio" ? msg("qualityAudio") : `${c}p` })
+    )
+  );
+  select.value = choices.includes(qualityChoice) ? qualityChoice : "best";
+  select.addEventListener("change", () => {
+    qualityChoice = select.value;
+    chrome.storage.local.set({ quality: qualityChoice }).catch(() => {});
+  });
+  return select;
+}
+
 function renderEntry(entry) {
   const v = entry.video;
   const thumb = el("div", { className: "thumb" });
@@ -458,7 +537,8 @@ function renderEntry(entry) {
   if (entry.kind === "missing") {
     note.textContent = msg("noteNoStream");
   }
-  if (entry.kind === "missing" || entry.manifest?.drm) buttons.forEach((b) => (b.disabled = true));
+  const quality = qualitySelect(entry);
+  if (entry.kind === "missing" || entry.manifest?.drm) [...buttons, quality].forEach((b) => (b.disabled = true));
 
   buttons.forEach((button, i) =>
     button.addEventListener("click", async () => {
@@ -473,6 +553,9 @@ function renderEntry(entry) {
           title: title.value.trim() || entry.title,
           sourceTabId: tab.id,
           liveFrom: live ? (i === 0 ? "now" : "start") : undefined,
+          quality: qualityFor(quality.value),
+          candidates: entry.candidates,
+          duration: entry.video?.duration,
         },
       });
       note.textContent = msg(added ? "noteAdded" : "noteAlreadyAdded");
@@ -483,7 +566,7 @@ function renderEntry(entry) {
     "div",
     { className: "item" },
     thumb,
-    el("div", { className: "body" }, title, el("div", { className: "meta" }, ...tags(entry)), el("div", { className: "actions" }, ...buttons, note))
+    el("div", { className: "body" }, title, el("div", { className: "meta" }, ...tags(entry)), el("div", { className: "actions" }, ...buttons, quality, note))
   );
   if (v) {
     item.addEventListener("mouseenter", () => inFrame(v.frameId, highlightVideo, [v.index, true]).catch(() => {}));
@@ -560,7 +643,39 @@ $("collect").addEventListener("click", async () => {
 });
 
 renderJobs();
-renderVideos().catch((e) => {
+const videosReady = renderVideos().catch((e) => {
   console.error(e);
   $("videos").replaceChildren(el("div", { className: "empty", textContent: msg("unavailable") }));
 });
+
+// #if dev
+// Development bridge (see background.js): report the list and optionally
+// press a button, as the user would.
+const devParams = new URLSearchParams(location.search);
+if (devParams.get("dev")) {
+  videosReady.then(async () => {
+    const items = [...document.querySelectorAll("#videos .item")];
+    const result = {
+      items: items.map((it) => ({
+        title: it.querySelector(".title").value,
+        tags: [...it.querySelectorAll(".tag")].map((t) => t.textContent),
+        buttons: [...it.querySelectorAll("button")].map((b) => b.textContent + (b.disabled ? " (disabled)" : "")),
+        qualities: [...it.querySelectorAll("select.quality option")].map((o) => o.value),
+        note: it.querySelector(".note").textContent,
+      })),
+      empty: document.querySelector("#videos .empty")?.textContent,
+    };
+    const click = JSON.parse(devParams.get("click"));
+    if (click) {
+      const item = items[click.index ?? 0];
+      const select = item?.querySelector("select.quality");
+      if (select && click.quality) select.value = click.quality;
+      item?.querySelectorAll("button")[click.button ?? 0]?.click();
+      const note = item?.querySelector(".note");
+      for (let i = 0; i < 50 && note && !note.textContent; i++) await new Promise((r) => setTimeout(r, 100));
+      result.clicked = note?.textContent ?? "no such item";
+    }
+    chrome.runtime.sendMessage({ type: "dev-popup", id: devParams.get("dev"), result });
+  });
+}
+// #endif

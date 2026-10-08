@@ -75,11 +75,30 @@ async function downloadFormat(url, total, handle, onBytes, signal) {
   }
 }
 
+// The best video no taller than `maxHeight` (else the smallest) plus the best
+// audio. Old videos' best format may already be muxed (video + audio in one
+// file). Audio-only prefers AAC, which every player handles in .m4a.
+function chooseFormats(info, { maxHeight = Infinity, audioOnly = false } = {}) {
+  const { formats = [], adaptive_formats = [] } = info.streaming_data ?? {};
+  const all = [...formats, ...adaptive_formats].filter((f) => f.url || f.signature_cipher || f.cipher);
+  const rank = (a, b) => (b.height ?? 0) - (a.height ?? 0) || (b.bitrate ?? 0) - (a.bitrate ?? 0);
+  const audios = all.filter((f) => f.has_audio && !f.has_video).sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0));
+  if (audioOnly) {
+    const audio = audios.find((f) => f.mime_type.startsWith("audio/mp4")) ?? audios[0];
+    if (!audio) throw new UserError("errNoTracks");
+    return [audio];
+  }
+  const videos = all.filter((f) => f.has_video).sort(rank);
+  const video = videos.find((f) => (f.height ?? 0) <= maxHeight) ?? videos.at(-1);
+  if (!video) throw new UserError("errNoTracks");
+  return video.has_audio || !audios[0] ? [video] : [video, audios[0]];
+}
+
 /**
  * Looks up `pageUrl`'s video. `poBodies` are base64 SABR request bodies from
- * the tab's player. For a live stream, `liveManifest` is its HLS manifest URL
- * and `liveDash()` returns a fresh DASH manifest URL (set only if the stream
- * can be recorded from its start).
+ * the tab's player. For a live stream, `liveManifest` is its HLS manifest URL,
+ * `liveDash()` (if the stream has one) returns a fresh DASH manifest URL, and
+ * `dvr` says whether it can be recorded from its start.
  */
 export async function openYouTube(pageUrl, poBodies) {
   const videoId = youtubeVideoId(pageUrl);
@@ -93,6 +112,7 @@ export async function openYouTube(pageUrl, poBodies) {
 
   let liveManifest = null;
   let liveDash = null;
+  const dvr = !!info.page[0].video_details?.is_live_dvr_enabled;
   if (info.basic_info.is_live) {
     // The MWEB/WEB live manifests' segments are refused (403) or missing;
     // ANDROID's are served.
@@ -101,7 +121,7 @@ export async function openYouTube(pageUrl, poBodies) {
     if (!liveManifest) throw new UserError("yt_errNoLiveManifest");
     // Like yt-dlp: the PO token goes into the manifest URL's path.
     if (poToken) liveManifest = `${liveManifest.replace(/\/$/, "")}/pot/${poToken}`;
-    if (info.page[0].video_details?.is_live_dvr_enabled && live.streaming_data?.dash_manifest_url) {
+    if (live.streaming_data?.dash_manifest_url) {
       let first = live.streaming_data.dash_manifest_url;
       liveDash = async () => {
         const url = first ?? (await yt.getBasicInfo(videoId, { client: LIVE_CLIENT })).streaming_data?.dash_manifest_url;
@@ -111,7 +131,7 @@ export async function openYouTube(pageUrl, poBodies) {
       };
     }
   }
-  return { yt, info, liveManifest, liveDash };
+  return { yt, info, liveManifest, liveDash, dvr };
 }
 
 /**
@@ -119,11 +139,8 @@ export async function openYouTube(pageUrl, poBodies) {
  * `newFile()` and returns the handle of the merged MP4. `onProgress(done,
  * total)` reports bytes.
  */
-export async function downloadYouTube({ yt, info }, { dir, newFile, onProgress, signal }) {
-
-  const video = info.chooseFormat({ type: "video", quality: "best", format: "any" });
-  // Old videos' best format may already be muxed (video + audio in one file).
-  const formats = video.has_audio ? [video] : [video, info.chooseFormat({ type: "audio", quality: "best", format: "any" })];
+export async function downloadYouTube({ yt, info }, { quality, dir, newFile, onProgress, signal }) {
+  const formats = chooseFormats(info, quality);
   const urls = await Promise.all(formats.map((f) => f.decipher(yt.session.player)));
   // Some (mostly older) formats omit contentLength; ask the server instead.
   const sizes = await Promise.all(formats.map((f, i) => Number(f.content_length) || contentLength(urls[i], signal)));

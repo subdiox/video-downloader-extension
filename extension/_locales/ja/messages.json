@@ -11,11 +11,19 @@
   "actionTitleRecording": {
     "message": "Video Downloader（録画中）"
   },
-  "toastRefused": {
+  "notifyRefused": {
     "message": "動画を取得できませんでした（サーバーに拒否されました）"
   },
-  "toastRecording": {
+  "notifyRecording": {
     "message": "ライブ配信を録画中です。拡張機能のボタンから停止して保存できます"
+  },
+  "notifySaved": {
+    "message": "保存しました: $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
   },
   "errManifest": {
     "message": "マニフェストを取得できません (HTTP $p1$)",
@@ -43,6 +51,9 @@
   },
   "errNoTracks": {
     "message": "変換できるトラックがありません"
+  },
+  "errNoAudio": {
+    "message": "この動画には音声がありません"
   },
   "errNoData": {
     "message": "データがありません"
@@ -219,6 +230,15 @@
   },
   "btnDownload": {
     "message": "ダウンロード"
+  },
+  "qualityTip": {
+    "message": "画質"
+  },
+  "qualityBest": {
+    "message": "最高画質"
+  },
+  "qualityAudio": {
+    "message": "音声のみ"
   },
   "noteNoStream": {
     "message": "ストリームを検出できません。再生を始めてから開き直してください"
