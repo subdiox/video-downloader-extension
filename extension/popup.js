@@ -112,6 +112,10 @@ function inspectVideos() {
       started: v.currentTime > 0,
       rect: { x: r.left, y: r.top, w: r.width, h: r.height },
       frameUrl: location.href,
+      // #if youtube
+      // YouTube's main player; its other <video>s are hover previews.
+      youtubeMain: !!v.closest("#movie_player"),
+      // #endif
     };
   });
 }
@@ -300,7 +304,7 @@ async function collectEntries() {
   // Media files fetched without a manifest, newest first (see background.js).
   const { media = {} } = await chrome.storage.session.get("media");
   const mediaFiles = media[tab.id] ?? [];
-  const entries = [];
+  let entries = [];
 
   for (const frameId of new Set([...videos.map((v) => v.frameId), ...streams.map((s) => s.frameId)])) {
     // A frame may load an ad stream before the real one; pair players with
@@ -314,8 +318,10 @@ async function collectEntries() {
       } else if (/^https?:/.test(v.src)) {
         entries.push({ kind: "stream", video: v, url: v.src, manifest: parseManifest(v.src, null) });
       // #if youtube
-      } else if (v.src.startsWith("blob:") && frameId === 0 && isYouTube(tab.url) && !entries.some((e) => e.kind === "youtube")) {
-        entries.push({ kind: "youtube", video: v, url: tab.url });
+      } else if (v.src.startsWith("blob:") && frameId === 0 && isYouTube(tab.url)) {
+        // Hover previews (of other videos) linger in the page; only the main
+        // player is this page's video.
+        if (v.youtubeMain && !entries.some((e) => e.kind === "youtube")) entries.push({ kind: "youtube", video: v, url: tab.url });
       // #endif
       } else if (v.src.startsWith("blob:")) {
         // MSE players: pair the frame's videos with its manifests in load order.
@@ -372,6 +378,10 @@ async function collectEntries() {
     const crowded = v && (videosInFrame.get(v.frameId)?.length ?? 0) > 1;
     e.title = v?.ownTitle || (crowded ? v.nearTitle : null) || (v && v.frameId !== 0 ? v.docTitle : null) || topTitle || "video";
   }
+  // "Stream not found" only helps when nothing on the page can be saved;
+  // next to a downloadable entry it is a leftover player or a preview.
+  if (entries.some((e) => e.kind !== "missing")) entries = entries.filter((e) => e.kind !== "missing");
+
   // Same title for several entries: number them so they can be told apart.
   const counts = Map.groupBy(entries, (e) => e.title);
   for (const group of counts.values()) if (group.length > 1) group.forEach((e, i) => (e.title = `${e.title} (${i + 1})`));
