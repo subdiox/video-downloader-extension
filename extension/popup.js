@@ -181,32 +181,33 @@ function parseManifest(url, text) {
   if (isDash) {
     const doc = new DOMParser().parseFromString(text, "application/xml");
     const mpd = doc.documentElement;
-    const lines = [...doc.getElementsByTagNameNS("*", "Representation")].map((r) =>
+    // Each video's lines: the shorter side.
+    const sizes = [...doc.getElementsByTagNameNS("*", "Representation")].map((r) =>
       Math.min(Number(r.getAttribute("width")) || 0, Number(r.getAttribute("height")) || 0)
     );
     return {
       ...info,
       live: mpd.getAttribute("type") === "dynamic",
       drm: doc.getElementsByTagNameNS("*", "ContentProtection").length > 0,
-      levels: levelsOf(lines),
+      levels: levelsOf(sizes),
       duration: parseIsoDuration(mpd.getAttribute("mediaPresentationDuration")),
     };
   }
 
   const lines = text.split(/\r?\n/).map((l) => l.trim());
   if (text.includes("#EXT-X-STREAM-INF")) {
-    const lines = [];
+    const sizes = []; // each variant's lines: the shorter side
     lines.forEach((line, i) => {
       if (line.startsWith("#EXT-X-STREAM-INF")) {
         const [, w, h] = line.match(/RESOLUTION=(\d+)x(\d+)/) ?? [];
-        lines.push(Math.min(Number(w) || 0, Number(h) || 0));
+        sizes.push(Math.min(Number(w) || 0, Number(h) || 0));
         const uri = lines.slice(i + 1).find((l) => l && !l.startsWith("#"));
         if (uri) info.children.push(new URL(uri, url).href);
       }
       const media = line.startsWith("#EXT-X-MEDIA:") && line.match(/URI="([^"]+)"/);
       if (media) info.children.push(new URL(media[1], url).href);
     });
-    return { ...info, master: true, levels: levelsOf(lines), drm: DRM_KEY.test(text) };
+    return { ...info, master: true, levels: levelsOf(sizes), drm: DRM_KEY.test(text) };
   }
 
   const duration = [...text.matchAll(/#EXTINF:([\d.]+)/g)].reduce((sum, m) => sum + Number(m[1]), 0);
@@ -616,6 +617,9 @@ function renderEntry(entry) {
 async function renderVideos() {
   const list = $("videos");
   const entries = await collectEntries();
+  // #if dev
+  globalThis.devEntries = entries;
+  // #endif
   $("videos-heading").textContent = msg("videosHeadingCount", entries.length);
   list.replaceChildren(...(entries.length ? entries.map(renderEntry) : [el("div", { className: "empty", textContent: msg("noVideos") })]));
 }
@@ -697,6 +701,12 @@ if (devParams.get("dev")) {
         note: it.querySelector(".note").textContent,
       })),
       empty: document.querySelector("#videos .empty")?.textContent,
+      // What each entry was built from (URLs as host + path).
+      entries: (globalThis.devEntries ?? []).map((e) => {
+        const at = (u) => (u ? new URL(u).host + new URL(u).pathname.slice(0, 50) : null);
+        const m = e.manifest;
+        return { kind: e.kind, url: at(e.url), manifest: m && { type: m.type, master: m.master, live: m.live, levels: m.levels, children: m.children?.length } };
+      }),
     };
     const click = JSON.parse(devParams.get("click"));
     if (click) {

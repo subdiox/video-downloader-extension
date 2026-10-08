@@ -606,6 +606,18 @@ chrome.runtime.onMessageExternal.addListener((m, sender, sendResponse) => {
       case "stop":
         await chrome.runtime.sendMessage({ target: "offscreen", type: "stop", key: m.key }).catch(() => {});
         return { ok: true };
+      case "refetch": {
+        // Fetch a tab's recorded streams whose URL contains m.match: status and start.
+        const { streams = {} } = await chrome.storage.session.get("streams");
+        const hits = (streams[m.tabId] ?? []).filter((s) => s.url.includes(m.match));
+        return Promise.all(
+          hits.map(async (s) => {
+            const res = await fetch(s.url, { credentials: "include" }).catch((e) => ({ status: String(e) }));
+            const text = res.text ? await res.text() : "";
+            return { age: Math.round((Date.now() - s.time) / 1000), status: res.status, start: text.slice(0, 160) };
+          })
+        );
+      }
       case "remove-downloads":
         for (const id of m.ids) {
           await chrome.downloads.removeFile(id).catch(() => {});
