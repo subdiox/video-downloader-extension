@@ -97,7 +97,6 @@ Tested by hand (October 2026). Other sites using the same kinds of players usual
 - DRM (Widevine / FairPlay / PlayReady, SAMPLE-AES, CENC): detected and refused
 - Rewinding YouTube live streams that have DVR disabled
 - Streams whose audio format changes midway (e.g. inserted ads) may have garbled audio in that section, since everything goes into one audio track
-- VP9 / AV1 in MP4 may not play in QuickTime (Chrome, VLC and IINA play it)
 
 ## License
 
