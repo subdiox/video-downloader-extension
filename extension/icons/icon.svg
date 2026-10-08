@@ -1,18 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <!-- Chrome extension style: no background tile; the glyph is the icon.
-       Artwork fits the central 96x96 (16px transparent margin at 128px). -->
+  <!-- A video screen with a play mark, and a big download arrow overlapping its corner. -->
   <defs>
-    <linearGradient id="fill" gradientUnits="userSpaceOnUse" x1="0" y1="16" x2="0" y2="112">
-      <stop offset="0" stop-color="#4b8eff"/>
-      <stop offset="1" stop-color="#1a62e0"/>
+    <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="16" y1="16" x2="112" y2="112">
+      <stop offset="0" stop-color="#1FC8B4"/><stop offset="1" stop-color="#0E8F9E"/>
     </linearGradient>
-    <path id="arrow" d="M85 70 H97 V88 H106 L91 106 L76 88 H85 Z"/>
-    <!-- transparent gap between the play shape and the arrow -->
-    <mask id="gap">
+    <path id="arrow" d="M82 52 H98 V80 H110 L90 104 L70 80 H82 Z"/>
+    <mask id="cut">
       <rect width="128" height="128" fill="#fff"/>
-      <use href="#arrow" fill="#000" stroke="#000" stroke-width="14" stroke-linejoin="round"/>
+      <path d="M38 40 L38 76 L66 58 Z" fill="#000" stroke="#000" stroke-width="6" stroke-linejoin="round"/>
+      <use href="#arrow" fill="#000" stroke="#000" stroke-width="16" stroke-linejoin="round"/>
     </mask>
   </defs>
-  <path d="M27 24 L27 98 L94 61 Z" fill="url(#fill)" stroke="url(#fill)" stroke-width="14" stroke-linejoin="round" mask="url(#gap)"/>
-  <use href="#arrow" fill="url(#fill)" stroke="url(#fill)" stroke-width="4" stroke-linejoin="round"/>
+  <rect x="16" y="22" width="84" height="72" rx="16" fill="url(#g)" mask="url(#cut)"/>
+  <use href="#arrow" fill="url(#g)" stroke="url(#g)" stroke-width="5" stroke-linejoin="round"/>
 </svg>
