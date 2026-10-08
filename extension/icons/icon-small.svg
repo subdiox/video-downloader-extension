@@ -2,7 +2,7 @@
   <!-- A square video screen with a play mark, and a big download arrow overlapping its corner. -->
   <defs>
     <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="16" y1="16" x2="112" y2="112">
-      <stop offset="0" stop-color="#1FC8B4"/><stop offset="1" stop-color="#0E8F9E"/>
+      <stop offset="0" stop-color="#4C9DFF"/><stop offset="1" stop-color="#1F63E6"/>
     </linearGradient>
     <path id="arrow" d="M83 54 H99 V84 H111 L91 108 L71 84 H83 Z"/>
     <mask id="cut">
