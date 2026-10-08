@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="14 14 100 100">
-  <!-- A video screen with a play mark, and a big download arrow overlapping its corner. -->
+  <!-- A square video screen with a play mark, and a big download arrow overlapping its corner. -->
   <defs>
     <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="16" y1="16" x2="112" y2="112">
       <stop offset="0" stop-color="#1FC8B4"/><stop offset="1" stop-color="#0E8F9E"/>
@@ -7,10 +7,10 @@
     <path id="arrow" d="M83 54 H99 V84 H111 L91 108 L71 84 H83 Z"/>
     <mask id="cut">
       <rect width="128" height="128" fill="#fff"/>
-      <path d="M37 37 L37 75 L67 56 Z" fill="#000" stroke="#000" stroke-width="6" stroke-linejoin="round"/>
+      <path d="M37 39 L37 77 L67 58 Z" fill="#000" stroke="#000" stroke-width="6" stroke-linejoin="round"/>
       <use href="#arrow" fill="#000" stroke="#000" stroke-width="16" stroke-linejoin="round"/>
     </mask>
   </defs>
-  <rect x="16" y="16" width="84" height="80" rx="17" fill="url(#g)" mask="url(#cut)"/>
+  <rect x="16" y="16" width="84" height="84" rx="17" fill="url(#g)" mask="url(#cut)"/>
   <use href="#arrow" fill="url(#g)" stroke="url(#g)" stroke-width="5" stroke-linejoin="round"/>
 </svg>
