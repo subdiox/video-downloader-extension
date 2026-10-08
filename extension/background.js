@@ -381,7 +381,26 @@ function mediaFile(d, type) {
   const size = Number(header("content-range")?.split("/")[1]) || (d.statusCode === 200 ? Number(header("content-length")) : 0);
   if (!(size >= MIN_MEDIA_FILE)) return null;
   for (const p of BYTE_RANGE_PARAMS) url.searchParams.delete(p);
-  return { url: url.href, frameId: d.frameId, size, type: type.split(";")[0], time: d.timeStamp };
+  return { url: url.href, frameId: d.frameId, size, type: type.split(";")[0], first: d.timeStamp, time: d.timeStamp };
+}
+
+// Recorded URLs per tab: `first` and `time` are when it was first and last
+// requested. A stream re-requested with a new token (?…) is the same stream.
+const MAX_RECORDED = 30;
+const streamKey = (url) => url.replace(/[?#].*/, "");
+
+// Over the limit, thin out the biggest host + directory first, oldest first:
+// live players (Twitch) request each playlist under a fresh URL, and that
+// flood must not push out the master playlist requested once.
+function trim(list) {
+  while (list.length > MAX_RECORDED) {
+    const dir = (s) => s.url.replace(/[?#].*/, "").replace(/[^/]*$/, "");
+    const groups = Map.groupBy(list, dir);
+    const biggest = [...groups.values()].sort((a, b) => b.length - a.length)[0];
+    const oldest = biggest.reduce((a, b) => (a.time <= b.time ? a : b));
+    list.splice(list.indexOf(oldest), 1);
+  }
+  return list;
 }
 
 chrome.webRequest.onHeadersReceived.addListener(
@@ -391,11 +410,12 @@ chrome.webRequest.onHeadersReceived.addListener(
     if (isStreamType(type) || isStreamUrl(d.url)) {
       withStreams((streams) => {
         const list = (streams[d.tabId] ??= []);
-        // A refetch (live playlists) keeps its place but counts as recent.
-        const seen = list.find((s) => s.url === d.url);
-        if (seen) return void (seen.time = d.timeStamp);
-        list.push({ url: d.url, frameId: d.frameId, initiator: d.initiator, time: d.timeStamp });
-        if (list.length > 30) list.splice(0, list.length - 30);
+        // A refetch, also under a new token (live playlists), is the same
+        // stream: keep when it was first requested, take the latest URL.
+        const seen = list.find((s) => s.frameId === d.frameId && streamKey(s.url) === streamKey(d.url));
+        if (seen) return void Object.assign(seen, { url: d.url, time: d.timeStamp });
+        list.push({ url: d.url, frameId: d.frameId, initiator: d.initiator, first: d.timeStamp, time: d.timeStamp });
+        trim(list);
       });
       return;
     }
@@ -403,8 +423,10 @@ chrome.webRequest.onHeadersReceived.addListener(
     if (!file) return;
     withMedia((media) => {
       // Most recently fetched first: the playing video keeps fetching.
-      const list = (media[d.tabId] ?? []).filter((m) => m.url !== file.url);
-      media[d.tabId] = [file, ...list].slice(0, 30);
+      const list = media[d.tabId] ?? [];
+      const seen = list.find((m) => m.url === file.url);
+      if (seen) file.first = seen.first;
+      media[d.tabId] = trim([file, ...list.filter((m) => m !== seen)]);
     });
   },
   { urls: ["<all_urls>"], types: ["xmlhttprequest", "media", "other"] },
@@ -421,13 +443,20 @@ chrome.webRequest.onBeforeRequest.addListener(
 );
 
 // Single-page apps (X, Instagram, …) change the URL without loading a
-// page: forget what the previous view fetched. A couple of seconds of slack
-// keeps a new view's own requests, which may land just before the URL changes.
+// page: forget what the previous view fetched. A stream counts as the new
+// view's only if it was first requested around the change or later; the old
+// view's player may go on requesting its stream for a moment (Twitch's
+// featured channel), and must not pass for the new one. A couple of seconds
+// of slack keeps a new view's requests that land just before the change.
 chrome.tabs.onUpdated.addListener((tabId, info) => {
   if (!info.url) return;
   const since = Date.now() - 2000;
   const keep = (lists) => {
-    if (lists[tabId]) lists[tabId] = lists[tabId].filter((s) => s.time >= since);
+    const list = lists[tabId];
+    if (!list) return;
+    const first = new Map();
+    for (const s of list) first.set(streamKey(s.url), Math.min(first.get(streamKey(s.url)) ?? Infinity, s.first ?? s.time));
+    lists[tabId] = list.filter((s) => first.get(streamKey(s.url)) >= since);
   };
   withStreams(keep);
   withMedia(keep);
@@ -527,8 +556,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 //   reload                              reload the extension
 //   popup { tabId, click? }             open the popup for a tab, report its list;
 //                                       click: { index, button, quality }
-//   state { limit?, logs? }             queue, active jobs, latest downloads, notifications,
-//                                       progress, offscreen devLog() lines
+//   state { limit?, logs?, tabId? }     queue, active jobs, latest downloads, notifications,
+//                                       progress, offscreen devLog() lines, a tab's streams
 //   stop { key }                        stop a live recording and save it
 //   remove-downloads { ids }            delete test downloads (file and entry)
 
@@ -561,6 +590,17 @@ chrome.runtime.onMessageExternal.addListener((m, sender, sendResponse) => {
           notifications: await chrome.notifications.getAll(),
           progress: devProgress,
           logs: devLogs.slice(-(m.logs ?? 20)),
+          // A tab's recorded manifests and media files: [age in s, frame, host + path].
+          ...(m.tabId != null && {
+            streams: await Promise.all(
+              ["streams", "media"].map(async (key) =>
+                ((await chrome.storage.session.get(key))[key]?.[m.tabId] ?? []).map((s) => {
+                  const u = new URL(s.url);
+                  return [Math.round((Date.now() - s.time) / 1000), s.frameId, u.host + u.pathname.slice(0, 60)];
+                })
+              )
+            ),
+          }),
         };
       }
       case "stop":

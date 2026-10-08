@@ -240,6 +240,14 @@ function youtubeVideoId(pageUrl) {
 }
 // #endif
 
+// Whether a stream URL names what the page shows: manifest URLs often carry
+// the channel or video ID of the page path ("/fps_shaka" ->
+// ".../hls/fps_shaka.m3u8", "/videos/123" -> ".../vod/123.m3u8").
+function matchesPage(url) {
+  const tokens = new URL(tab.url).pathname.split("/").filter((t) => t.length >= 4);
+  return tokens.some((t) => url.includes(t));
+}
+
 // Distinct resolutions, best first.
 const levelsOf = (lines) => [...new Set(lines.filter((n) => n > 0))].sort((a, b) => b - a);
 
@@ -315,7 +323,13 @@ async function collectEntries() {
     // non-ad, longest streams first.
     const frameStreams = streams
       .filter((s) => s.frameId === frameId)
-      .sort((a, b) => urlLooksLikeAd(a.url) - urlLooksLikeAd(b.url) || lengthKey(b.live ? Infinity : b.duration) - lengthKey(a.live ? Infinity : a.duration));
+      .sort(
+        (a, b) =>
+          urlLooksLikeAd(a.url) - urlLooksLikeAd(b.url) ||
+          matchesPage(b.url) - matchesPage(a.url) ||
+          lengthKey(b.live ? Infinity : b.duration) - lengthKey(a.live ? Infinity : a.duration)
+      );
+    let paired = false;
     for (const v of videos.filter((v) => v.frameId === frameId)) {
       if (/^https?:/.test(v.src) && !/\.(m3u8|mpd)(\?|#|$)/i.test(v.src)) {
         entries.push({ kind: "file", video: v, url: v.src });
@@ -333,12 +347,16 @@ async function collectEntries() {
         // document keeps those as long as this player's video.
         const manifest = frameStreams.shift();
         const candidates = mediaFiles.filter((m) => m.frameId === frameId).slice(0, 8).map((m) => m.url);
-        if (manifest) entries.push({ kind: "stream", video: v, url: manifest.url, manifest });
-        else if (candidates.length && v.duration > 0) entries.push({ kind: "media", video: v, url: candidates[0], candidates });
+        if (manifest) {
+          entries.push({ kind: "stream", video: v, url: manifest.url, manifest });
+          paired = true;
+        } else if (candidates.length && v.duration > 0) entries.push({ kind: "media", video: v, url: candidates[0], candidates });
         else entries.push({ kind: "missing", video: v });
       }
     }
-    for (const manifest of frameStreams) entries.push({ kind: "stream", url: manifest.url, manifest });
+    // A live stream no player shows, next to one that a player does, is left
+    // over from an earlier view (e.g. a featured channel before navigating).
+    for (const manifest of frameStreams) if (!(paired && manifest.live)) entries.push({ kind: "stream", url: manifest.url, manifest });
   }
 
   // #if youtube
