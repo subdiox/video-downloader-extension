@@ -45,7 +45,12 @@ function inspectVideos() {
     }
     return t || null;
   }
-  const ogTitle = clean(document.querySelector('meta[property="og:title"]')?.content);
+  // Single-page apps (Twitch) leave og:* from the first page they loaded; its
+  // og:url then names another page, and the page title is the current one.
+  const ogUrl = document.querySelector('meta[property="og:url"]')?.content;
+  const path = (u) => new URL(u, location.href).pathname.replace(/\/$/, "");
+  const ogCurrent = !ogUrl || path(ogUrl) === path(location.href);
+  const ogTitle = ogCurrent ? clean(document.querySelector('meta[property="og:title"]')?.content) : null;
   const docTitle = siteless(ogTitle && !isSiteName(ogTitle) ? ogTitle : clean(document.title));
 
   // Player UIs label their containers ("Video Player", "Playing in
