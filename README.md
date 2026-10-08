@@ -77,6 +77,36 @@ Files are saved to `Downloads/<title>.mp4` (Chrome numbers duplicates).
 
 Libraries: [Mediabunny](https://mediabunny.dev) (MPL-2.0), [mpd-parser](https://github.com/videojs/mpd-parser) and [mux.js](https://github.com/videojs/mux.js) (Apache-2.0; mux.js only for sidx parsing), [youtubei.js](https://github.com/LuanRT/YouTube.js) and [googlevideo](https://github.com/LuanRT/googlevideo) (MIT; googlevideo reads the PO token from the player's requests). Each build writes `dist/THIRD_PARTY_LICENSES.txt` with the license of every bundled package.
 
+## Tested sites
+
+Checked by hand in October 2026: each download was played back or inspected with ffprobe (length, video and audio tracks) to confirm it is the main video, complete, with sound. Sites change their players often, so treat this as a snapshot.
+
+Current code (after v0.7.0), in a logged-in Chrome profile:
+
+| Site | How it is fetched | What was checked |
+|---|---|---|
+| YouTube (full edition) | youtubei.js, like yt-dlp | Audio only (19 s, AAC); live, "record now" (1080p + audio) |
+| X | HLS | 1:29 post video, 1920p + audio |
+| Instagram | Media files (no manifest) | 19.5 s reel, 1920p + audio |
+| Facebook | Media files (no manifest) | 4:13 video, 360p + audio (the quality the player had loaded) |
+| TikTok | Media files (no manifest) | 6:04 video, 576p + audio |
+| bilibili | Media files (no manifest) | 47 min video, 480p + audio (logged out; higher qualities need an account) |
+| Twitch (VODs) | HLS | 40:16 VOD at 360p (video + audio); 1:06:31 VOD, audio only |
+
+Earlier versions (before v0.7.0), not re-checked since:
+
+| Site | What was checked |
+|---|---|
+| YouTube (full edition) | Videos up to 4K VP9 + AAC; live recorded from the start of a DVR stream |
+| Twitch (live) | Live recording |
+| Vimeo | Main video |
+| Dailymotion | Main video, not the pre-roll ad |
+| Niconico | Main video (AES-128 HLS, decrypted) |
+| TVer | Main video (58:57), not the ad |
+| Reddit | Main video |
+| TokyoMotion | Main video (plain MP4) |
+| ABEMA | Refused as expected (DRM) |
+
 ## Not supported
 
 - DRM (Widevine / FairPlay / PlayReady, SAMPLE-AES, CENC): detected and refused
