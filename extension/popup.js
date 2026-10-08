@@ -190,6 +190,7 @@ function parseManifest(url, text) {
       live: mpd.getAttribute("type") === "dynamic",
       drm: doc.getElementsByTagNameNS("*", "ContentProtection").length > 0,
       height: Math.max(0, ...heights) || null,
+      levels: levelsOf(heights),
       duration: parseIsoDuration(mpd.getAttribute("mediaPresentationDuration")),
     };
   }
@@ -207,7 +208,7 @@ function parseManifest(url, text) {
       const media = line.startsWith("#EXT-X-MEDIA:") && line.match(/URI="([^"]+)"/);
       if (media) info.children.push(new URL(media[1], url).href);
     });
-    return { ...info, master: true, height: Math.max(0, ...heights) || null, drm: DRM_KEY.test(text) };
+    return { ...info, master: true, height: Math.max(0, ...heights) || null, levels: levelsOf(heights), drm: DRM_KEY.test(text) };
   }
 
   const duration = [...text.matchAll(/#EXTINF:([\d.]+)/g)].reduce((sum, m) => sum + Number(m[1]), 0);
@@ -238,6 +239,9 @@ function youtubeVideoId(pageUrl) {
   }
 }
 // #endif
+
+// Distinct resolutions, best first.
+const levelsOf = (lines) => [...new Set(lines.filter((n) => n > 0))].sort((a, b) => b - a);
 
 // A frame that never answers (e.g. a stalled ad iframe) must not hang the popup.
 const withTimeout = (promise, ms = 10_000) =>
@@ -350,7 +354,9 @@ async function collectEntries() {
           const player = document.getElementById("movie_player");
           const d = player?.getVideoData?.();
           const dvr = player?.getPlayerResponse?.()?.videoDetails?.isLiveDvrEnabled === true;
-          return d && { id: d.video_id, live: d.isLive === true, dvr };
+          // "1080p60" -> 1080
+          const levels = (player?.getAvailableQualityData?.() ?? []).map((q) => parseInt(q.qualityLabel, 10)).filter((n) => n > 0);
+          return d && { id: d.video_id, live: d.isLive === true, dvr, levels };
         },
       })
     ).then(([r]) => r?.result, () => null);
@@ -359,6 +365,7 @@ async function collectEntries() {
       youtube.url = `https://www.youtube.com/watch?v=${id}`;
       youtube.live = data?.live;
       youtube.dvr = data?.dvr;
+      youtube.levels = levelsOf(data?.levels ?? []);
     } else {
       Object.assign(youtube, { kind: "missing", url: undefined });
     }
@@ -476,9 +483,10 @@ function tags(entry) {
 }
 
 // --- Quality ------------------------------------------------------------------
-// "best", "audio" or a maximum height ("720"); the last choice is remembered.
+// The menu lists the resolutions the video really has, best first, then audio
+// only. The choice is remembered as "best" (the top entry), "audio", or a
+// maximum ("720"), which picks the best resolution up to it on other videos.
 
-const HEIGHTS = [2160, 1440, 1080, 720, 480, 360, 240];
 let qualityChoice = "best";
 try {
   qualityChoice = (await chrome.storage.local.get("quality")).quality ?? "best";
@@ -488,24 +496,24 @@ const qualityFor = (choice) =>
   choice === "audio" ? { audioOnly: true } : choice === "best" ? undefined : { maxLines: Number(choice) };
 
 function qualitySelect(entry) {
-  // A file has one quality; for streams, offer the heights below the best one
-  // known.
-  let best = entry.manifest?.height || entry.video?.lines || Infinity;
+  // Resolutions on offer: a manifest's variants, YouTube's quality list, or
+  // else the one the player shows (a file, or media files it fetched).
+  let levels = entry.manifest?.levels ?? [];
   // #if youtube
-  // YouTube's <video> shows only what is playing, so offer every height.
-  if (entry.kind === "youtube") best = Infinity;
+  if (entry.kind === "youtube") levels = entry.levels ?? [];
   // #endif
-  // A media entry can only use what the player fetched.
-  const heights = entry.kind === "file" || entry.kind === "media" ? [] : HEIGHTS.filter((h) => h < best);
-  const choices = ["best", ...heights.map(String), "audio"];
-  const select = el(
-    "select",
-    { className: "quality", title: msg("qualityTip") },
-    ...choices.map((c) =>
-      el("option", { value: c, textContent: c === "best" ? msg("qualityBest") : c === "audio" ? msg("qualityAudio") : `${c}p` })
-    )
-  );
-  select.value = choices.includes(qualityChoice) ? qualityChoice : "best";
+  if (!levels.length && entry.video?.lines) levels = [entry.video.lines];
+  const label = (c) => (c === "audio" ? msg("qualityAudio") : c === "best" ? (levels.length ? `${levels[0]}p` : msg("qualityBest")) : `${c}p`);
+  const choices = ["best", ...levels.slice(1).map(String), "audio"];
+  const select = el("select", { className: "quality", title: msg("qualityTip") }, ...choices.map((c) => el("option", { value: c, textContent: label(c) })));
+  // A remembered maximum picks the best level up to it, else the smallest.
+  const max = Number(qualityChoice);
+  select.value =
+    qualityChoice === "audio" || qualityChoice === "best"
+      ? qualityChoice
+      : levels[0] <= max
+        ? "best"
+        : String(levels.find((n) => n <= max) ?? levels.at(-1) ?? "best");
   select.addEventListener("change", () => {
     qualityChoice = select.value;
     chrome.storage.local.set({ quality: qualityChoice }).catch(() => {});
@@ -670,7 +678,7 @@ if (devParams.get("dev")) {
         title: it.querySelector(".title").value,
         tags: [...it.querySelectorAll(".tag")].map((t) => t.textContent),
         buttons: [...it.querySelectorAll("button")].map((b) => b.textContent + (b.disabled ? " (disabled)" : "")),
-        qualities: [...it.querySelectorAll("select.quality option")].map((o) => o.value),
+        qualities: [...it.querySelectorAll("select.quality option")].map((o) => `${o.value}=${o.textContent}${o.selected ? "*" : ""}`),
         note: it.querySelector(".note").textContent,
       })),
       empty: document.querySelector("#videos .empty")?.textContent,
