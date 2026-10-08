@@ -496,10 +496,11 @@ const qualityFor = (choice) =>
   choice === "audio" ? { audioOnly: true } : choice === "best" ? undefined : { maxLines: Number(choice) };
 
 function qualitySelect(entry) {
-  // Resolutions on offer: a manifest's variants, YouTube's quality list, or
-  // else the one the player shows (a file, or media files it fetched).
+  // Resolutions on offer: a manifest's variants, or else the one the player
+  // shows (a file, or media files it fetched).
   let levels = entry.manifest?.levels ?? [];
   // #if youtube
+  // YouTube: its player's quality list.
   if (entry.kind === "youtube") levels = entry.levels ?? [];
   // #endif
   if (!levels.length && entry.video?.lines) levels = [entry.video.lines];
