@@ -1,6 +1,10 @@
-# Video Downloader
+<p align="center">
+  <img src="extension/icons/icon.svg" width="128" height="128" alt="Video Downloader icon">
+</p>
 
-A Chrome extension (Manifest V3) that saves the videos playing on the current page.
+<h1 align="center">Video Downloader</h1>
+
+<p align="center">A Chrome extension (Manifest V3) that saves the videos playing on the current page.</p>
 
 - Plain video files (MP4, WebM, …)
 - HLS (MPEG-TS / fMP4, AES-128, separate audio tracks, live)
