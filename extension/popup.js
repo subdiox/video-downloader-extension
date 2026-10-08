@@ -33,8 +33,8 @@ function inspectVideos() {
   function siteless(title) {
     let t = title?.replace(/^\(\d+\+?\) /, "");
     for (let i = 0; t && i < 3; i++) {
-      // "… on Twitch"
-      const on = t.match(/^(.+?) on (\S+)$/);
+      // "… on Twitch", added once after the rest; a title may itself end so.
+      const on = i === 0 && t.match(/^(.+?) on (\S+)$/);
       if (on && isSiteName(on[2])) {
         t = on[1];
         continue;
