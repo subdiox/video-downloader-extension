@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Video Downloader</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --surface: #f5f6f8;
+    --border: #e2e4e9;
+    --text: #1d2026;
+    --muted: #697080;
+    --accent: #2f6fde;
+    --accent-text: #ffffff;
+    --danger: #d32f2f;
+    --highlight: #fff3c4;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1e22;
+      --surface: #26292e;
+      --border: #363a41;
+      --text: #e8eaee;
+      --muted: #9aa1ad;
+      --accent: #5b8ff0;
+      --accent-text: #0e1420;
+      --danger: #ef6b6b;
+      --highlight: #3a3420;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    width: 420px;
+    max-height: 580px;
+    background: var(--bg);
+    color: var(--text);
+    font: 13px/1.4 system-ui, -apple-system, "Hiragino Sans", sans-serif;
+  }
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 10px 14px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+  }
+  section { padding: 10px 14px; }
+  section + section { border-top: 1px solid var(--border); }
+  h2 {
+    margin: 0 0 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .empty { color: var(--muted); padding: 4px 0; }
+  .item {
+    display: grid;
+    grid-template-columns: 96px 1fr;
+    gap: 10px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+  }
+  .item + .item { margin-top: 8px; }
+  .item:hover { background: var(--highlight); }
+  .thumb {
+    width: 96px;
+    height: 54px;
+    border-radius: 4px;
+    background: var(--border) center / cover no-repeat;
+    display: grid;
+    place-items: center;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .thumb video { width: 100%; height: 100%; object-fit: cover; border-radius: 4px; }
+  .body { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .title {
+    width: 100%;
+    padding: 2px 4px;
+    margin: -2px -4px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-weight: 600;
+  }
+  .title:hover, .title:focus { border-color: var(--border); background: var(--bg); outline: none; }
+  .meta { display: flex; flex-wrap: wrap; gap: 4px; color: var(--muted); font-size: 11px; }
+  .tag {
+    padding: 0 5px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .tag.playing { color: var(--accent); border-color: var(--accent); }
+  .tag.warn { color: var(--danger); border-color: var(--danger); }
+  /* The note ("追加しました" etc.) gets its own line so it never squeezes the buttons. */
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+  button {
+    padding: 4px 10px;
+    border: 0;
+    border-radius: 5px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font: inherit;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.45; cursor: default; }
+  button.secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  button.stop { background: var(--danger); color: #fff; }
+  .note { color: var(--muted); font-size: 11px; }
+  .actions .note { flex-basis: 100%; }
+  .actions .note:empty { display: none; }
+  .job { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; align-items: center; }
+  .job + .job { margin-top: 10px; }
+  .job .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+  .bar > div { height: 100%; width: 0; background: var(--accent); transition: width 0.3s; }
+  .bar.live > div { width: 100%; background: var(--danger); opacity: 0.7; }
+  .bar.waiting > div { width: 0; }
+  .wide { width: 100%; }
+</style>
+</head>
+<body>
+  <header>Video Downloader</header>
+  <section>
+    <h2 id="videos-heading">このページの動画</h2>
+    <div id="videos"><div class="empty">読み込み中…</div></div>
+  </section>
+  <section id="jobs-section" hidden>
+    <h2>ダウンロード中</h2>
+    <div id="jobs"></div>
+  </section>
+  <section>
+    <button id="collect" class="secondary wide">このページからリンクされている動画を全部ダウンロード…</button>
+  </section>
+  <script src="popup.js" type="module"></script>
+</body>
+</html>
