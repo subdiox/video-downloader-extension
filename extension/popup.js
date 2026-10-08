@@ -254,6 +254,19 @@ function matchesPage(url) {
   return tokens.some((t) => url.includes(t));
 }
 
+// The store edition doesn't handle YouTube (Chrome Web Store policy): it says
+// so rather than listing players it cannot save. The build sets this to true
+// for that edition.
+const STORE_EDITION = false;
+const YOUTUBE_HOST = /(^|\.)(youtube\.com|youtube-nocookie\.com|youtu\.be)$/;
+const onYouTube = (url) => {
+  try {
+    return YOUTUBE_HOST.test(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+};
+
 // Distinct resolutions, best first.
 const levelsOf = (lines) => [...new Set(lines.filter((n) => n > 0))].sort((a, b) => b - a);
 
@@ -317,7 +330,9 @@ async function collectEntries() {
   const frames = await withTimeout(chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, func: inspectVideos })).catch(
     () => []
   );
-  const videos = frames.flatMap((f) => (f.result ?? []).map((v) => ({ ...v, frameId: f.frameId })));
+  let videos = frames.flatMap((f) => (f.result ?? []).map((v) => ({ ...v, frameId: f.frameId })));
+  // Embedded YouTube players are left out of the store edition.
+  if (STORE_EDITION) videos = videos.filter((v) => !onYouTube(v.frameUrl));
   const streams = await loadStreams();
   // Media files fetched without a manifest, newest first (see background.js).
   const { media = {} } = await chrome.storage.session.get("media");
@@ -636,6 +651,10 @@ function renderEntry(entry) {
 
 async function renderVideos() {
   const list = $("videos");
+  if (STORE_EDITION && onYouTube(tab.url)) {
+    list.replaceChildren(el("div", { className: "empty", textContent: msg("unsupportedYouTube") }));
+    return;
+  }
   const entries = await collectEntries();
   // #if dev
   globalThis.devEntries = entries;

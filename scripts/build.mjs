@@ -127,7 +127,12 @@ function writeEdition(name, youtube) {
       }
       fs.writeFileSync(to, JSON.stringify(manifest, null, 2) + "\n");
     } else if (/\.(js|html)$/.test(entry.name)) {
-      fs.writeFileSync(to, preprocess(fs.readFileSync(from, "utf8"), { youtube, dev: false }));
+      let text = preprocess(fs.readFileSync(from, "utf8"), { youtube, dev: false });
+      if (entry.name === "popup.js") {
+        if (!text.includes("const STORE_EDITION = false;")) throw new Error("popup.js: STORE_EDITION not found");
+        text = text.replace("const STORE_EDITION = false;", `const STORE_EDITION = ${!youtube};`);
+      }
+      fs.writeFileSync(to, text);
     } else fs.copyFileSync(from, to);
   }
   return out;

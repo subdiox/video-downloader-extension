@@ -219,6 +219,10 @@
   "loading": {
     "message": "Loading…"
   },
+  "unsupportedYouTube": {
+    "message": "YouTube isn't supported.",
+    "description": "Shown on YouTube pages in the Chrome Web Store edition"
+  },
   "unavailable": {
     "message": "Not available on this page"
   },
