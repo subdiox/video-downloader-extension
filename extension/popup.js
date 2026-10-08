@@ -114,6 +114,8 @@ function inspectVideos() {
       // user's video, rather than a preview further down the page.
       visible: r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth,
       started: v.currentTime > 0,
+      // Hover/thumbnail previews: silent, looping or autoplaying, no controls.
+      silentLoop: v.muted && (v.loop || v.autoplay) && !v.controls,
       rect: { x: r.left, y: r.top, w: r.width, h: r.height },
       frameUrl: location.href,
       // #if youtube
@@ -410,6 +412,19 @@ async function collectEntries() {
   // "Stream not found" only helps when nothing on the page can be saved;
   // next to a downloadable entry it is a leftover player or a preview.
   if (entries.some((e) => e.kind !== "missing")) entries = entries.filter((e) => e.kind !== "missing");
+
+  // Listing pages show related videos as small silent looping previews (or
+  // hidden ones, waiting for a hover). Next to a bigger player they are not
+  // what the user came for. Feeds of same-sized videos (TikTok, Reels) keep
+  // all of theirs.
+  const largest = Map.groupBy(entries.filter((e) => e.video), (e) => e.video.frameId);
+  const isPreview = (e) => {
+    const v = e.video;
+    if (!v || e.kind === "stream" || e.kind === "media") return false;
+    const biggest = Math.max(...largest.get(v.frameId).map((o) => o.video.area));
+    return v.area === 0 ? biggest > 0 : v.silentLoop && v.area < biggest / 2;
+  };
+  if (entries.some((e) => !isPreview(e))) entries = entries.filter((e) => !isPreview(e));
 
   // Same title for several entries: number them so they can be told apart.
   const counts = Map.groupBy(entries, (e) => e.title);
