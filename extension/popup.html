@@ -38,15 +38,6 @@
     color: var(--text);
     font: 13px/1.4 system-ui, -apple-system, "Hiragino Sans", sans-serif;
   }
-  header {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    padding: 10px 14px;
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
-    font-weight: 600;
-  }
   section { padding: 10px 14px; }
   section + section { border-top: 1px solid var(--border); }
   h2 {
@@ -137,7 +128,6 @@
 </style>
 </head>
 <body>
-  <header>Video Downloader</header>
   <section>
     <h2 id="videos-heading" data-i18n="videosHeading"></h2>
     <div id="videos"><div class="empty" data-i18n="loading"></div></div>
