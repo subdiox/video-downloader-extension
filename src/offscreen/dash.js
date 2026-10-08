@@ -18,12 +18,13 @@ class DrmError extends UserError {
 
 export const isMpd = (text) => /<MPD[\s>]/.test(text.slice(0, 4096));
 
-// The best video no taller than `maxHeight` (else the smallest) and the best
+// The best video of at most `maxLines` (else the smallest) and the best
 // audio; `audioOnly` keeps just the audio when there is a separate one.
-function pickVariants(manifest, { maxHeight = Infinity, audioOnly = false } = {}) {
-  const height = (p) => p.attributes.RESOLUTION?.height ?? 0;
+// Lines are the shorter side ("1080p" also for a 1080x1920 portrait video).
+function pickVariants(manifest, { maxLines = Infinity, audioOnly = false } = {}) {
+  const lines = (p) => Math.min(p.attributes.RESOLUTION?.width ?? 0, p.attributes.RESOLUTION?.height ?? 0);
   const byBandwidth = [...manifest.playlists].sort((a, b) => (b.attributes.BANDWIDTH ?? 0) - (a.attributes.BANDWIDTH ?? 0));
-  let video = byBandwidth.find((p) => height(p) <= maxHeight) ?? byBandwidth.sort((a, b) => height(a) - height(b))[0];
+  let video = byBandwidth.find((p) => lines(p) <= maxLines) ?? byBandwidth.sort((a, b) => lines(a) - lines(b))[0];
   const audioPlaylists = Object.values(manifest.mediaGroups?.AUDIO ?? {})
     .flatMap((group) => Object.values(group))
     .sort((a, b) => Number(b.default) - Number(a.default))

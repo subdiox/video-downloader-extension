@@ -75,13 +75,14 @@ async function downloadFormat(url, total, handle, onBytes, signal) {
   }
 }
 
-// The best video no taller than `maxHeight` (else the smallest) plus the best
-// audio. Old videos' best format may already be muxed (video + audio in one
+// The best video of at most `maxLines` (the shorter side; else the smallest)
+// plus the best audio. Old videos' best format may already be muxed (video + audio in one
 // file). Audio-only prefers AAC, which every player handles in .m4a.
-function chooseFormats(info, { maxHeight = Infinity, audioOnly = false } = {}) {
+function chooseFormats(info, { maxLines = Infinity, audioOnly = false } = {}) {
   const { formats = [], adaptive_formats = [] } = info.streaming_data ?? {};
   const all = [...formats, ...adaptive_formats].filter((f) => f.url || f.signature_cipher || f.cipher);
-  const rank = (a, b) => (b.height ?? 0) - (a.height ?? 0) || (b.bitrate ?? 0) - (a.bitrate ?? 0);
+  const lines = (f) => Math.min(f.width ?? 0, f.height ?? 0);
+  const rank = (a, b) => lines(b) - lines(a) || (b.bitrate ?? 0) - (a.bitrate ?? 0);
   const audios = all.filter((f) => f.has_audio && !f.has_video).sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0));
   if (audioOnly) {
     const audio = audios.find((f) => f.mime_type.startsWith("audio/mp4")) ?? audios[0];
@@ -89,7 +90,7 @@ function chooseFormats(info, { maxHeight = Infinity, audioOnly = false } = {}) {
     return [audio];
   }
   const videos = all.filter((f) => f.has_video).sort(rank);
-  const video = videos.find((f) => (f.height ?? 0) <= maxHeight) ?? videos.at(-1);
+  const video = videos.find((f) => lines(f) <= maxLines) ?? videos.at(-1);
   if (!video) throw new UserError("errNoTracks");
   return video.has_audio || !audios[0] ? [video] : [video, audios[0]];
 }

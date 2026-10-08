@@ -82,15 +82,18 @@ async function openInput(url, quality, plain) {
   return new Input({ source, formats: ALL_FORMATS });
 }
 
-// The tracks to save: the best video no taller than `maxHeight` (else the
+// A video's lines: its shorter side ("1080p" also for 1080x1920 portrait).
+const lines = async (track) => Math.min(await track.getDisplayWidth(), await track.getDisplayHeight());
+
+// The tracks to save: the best video of at most `maxLines` (else the
 // smallest), and an audio track that plays with it. `audioOnly` skips video.
-async function pickTracks(input, { maxHeight = Infinity, audioOnly = false } = {}) {
+async function pickTracks(input, { maxLines = Infinity, audioOnly = false } = {}) {
   let video = null;
   if (!audioOnly) {
-    const fits = async (t) => (await t.getDisplayHeight()) <= maxHeight;
+    const fits = async (t) => (await lines(t)) <= maxLines;
     video =
       (await input.getPrimaryVideoTrack({ filter: fits })) ??
-      (await input.getVideoTracks({ sortBy: (t) => t.getDisplayHeight() }))[0] ??
+      (await input.getVideoTracks({ sortBy: lines }))[0] ??
       null;
   }
   // Audio only: a track that comes without video (e.g. Twitch's audio_only
@@ -209,10 +212,10 @@ async function runMedia(key, candidates, duration, quality) {
       if (abort.signal.aborted) throw new UserError("errAborted");
     }
     const tracks = (await Promise.all(inputs.map(async (input) => (await input.getTracks()).map((track) => ({ input, track }))))).flat();
-    const fits = async ({ track }) => track.isVideoTrack() && (await track.getDisplayHeight()) <= (quality?.maxHeight ?? Infinity);
     const videos = tracks.filter(({ track }) => track.isVideoTrack());
-    const sized = await Promise.all(videos.map(async (v) => ({ ...v, height: await v.track.getDisplayHeight(), ok: await fits(v) })));
-    sized.sort((a, b) => b.height - a.height);
+    const sized = await Promise.all(videos.map(async (v) => ({ ...v, lines: await lines(v.track) })));
+    sized.forEach((v) => (v.ok = v.lines <= (quality?.maxLines ?? Infinity)));
+    sized.sort((a, b) => b.lines - a.lines);
     const video = audioOnly ? null : (sized.find((v) => v.ok) ?? sized.at(-1) ?? null);
     const audio = tracks.find(({ input, track }) => track.isAudioTrack() && input === video?.input) ?? tracks.find(({ track }) => track.isAudioTrack()) ?? null;
     if (audioOnly ? !audio : !video) throw new UserError(audioOnly ? "errNoAudio" : "errNoTracks");

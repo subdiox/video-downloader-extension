@@ -13,9 +13,9 @@ import { UserError } from "./errors.js";
 
 const VIRTUAL = "https://bvdl.invalid/";
 
-// The best video no taller than `maxHeight` (else the smallest; none when
-// `audioOnly`) and the best audio.
-function representations(mpd, { maxHeight = Infinity, audioOnly = false } = {}) {
+// The best video of at most `maxLines` (the shorter side; else the smallest;
+// none when `audioOnly`) and the best audio.
+function representations(mpd, { maxLines = Infinity, audioOnly = false } = {}) {
   const doc = new DOMParser().parseFromString(mpd, "application/xml");
   const reps = [];
   for (const set of doc.getElementsByTagName("AdaptationSet")) {
@@ -29,13 +29,14 @@ function representations(mpd, { maxHeight = Infinity, audioOnly = false } = {}) 
         bandwidth: Number(rep.getAttribute("bandwidth")) || 0,
         codecs: rep.getAttribute("codecs"),
         width: rep.getAttribute("width"),
-        height: Number(rep.getAttribute("height")) || 0,
+        height: rep.getAttribute("height"),
+        lines: Math.min(Number(rep.getAttribute("width")) || 0, Number(rep.getAttribute("height")) || 0),
       });
     }
   }
   const byBandwidth = (kind) => reps.filter((r) => r.kind === kind).sort((a, b) => b.bandwidth - a.bandwidth);
   const videos = byBandwidth("video");
-  const video = audioOnly ? null : videos.find((r) => r.height <= maxHeight) ?? videos.sort((a, b) => a.height - b.height)[0];
+  const video = audioOnly ? null : videos.find((r) => r.lines <= maxLines) ?? videos.sort((a, b) => a.lines - b.lines)[0];
   return { video, audio: byBandwidth("audio")[0] };
 }
 

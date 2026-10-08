@@ -101,6 +101,8 @@ function inspectVideos() {
       thumb: thumbnail(v),
       width: v.videoWidth,
       height: v.videoHeight,
+      // "1080p" names the shorter side, also for portrait (1080x1920) video.
+      lines: Math.min(v.videoWidth, v.videoHeight),
       duration: Number.isFinite(v.duration) ? v.duration : v.duration === Infinity ? Infinity : null,
       playing: !v.paused && !v.ended,
       area: r.width * r.height,
@@ -176,7 +178,9 @@ function parseManifest(url, text) {
   if (isDash) {
     const doc = new DOMParser().parseFromString(text, "application/xml");
     const mpd = doc.documentElement;
-    const heights = [...doc.getElementsByTagNameNS("*", "Representation")].map((r) => Number(r.getAttribute("height")) || 0);
+    const heights = [...doc.getElementsByTagNameNS("*", "Representation")].map((r) =>
+      Math.min(Number(r.getAttribute("width")) || 0, Number(r.getAttribute("height")) || 0)
+    );
     return {
       ...info,
       live: mpd.getAttribute("type") === "dynamic",
@@ -191,7 +195,8 @@ function parseManifest(url, text) {
     const heights = [];
     lines.forEach((line, i) => {
       if (line.startsWith("#EXT-X-STREAM-INF")) {
-        heights.push(Number(line.match(/RESOLUTION=\d+x(\d+)/)?.[1]) || 0);
+        const [, w, h] = line.match(/RESOLUTION=(\d+)x(\d+)/) ?? [];
+        heights.push(Math.min(Number(w) || 0, Number(h) || 0));
         const uri = lines.slice(i + 1).find((l) => l && !l.startsWith("#"));
         if (uri) info.children.push(new URL(uri, url).href);
       }
@@ -445,8 +450,8 @@ function tags(entry) {
   // #endif
   if (entry.kind === "file") out.push([new URL(entry.url).pathname.match(/\.(\w{2,4})$/)?.[1]?.toUpperCase() ?? msg("tagVideo")]);
   if (m) out.push([m.type]);
-  const height = v?.height || m?.height;
-  if (height) out.push([`${height}p`]);
+  const lines = v?.lines || m?.height;
+  if (lines) out.push([`${lines}p`]);
   if (entry.duration === Infinity) out.push([msg("tagLive"), "warn"]);
   else {
     const time = formatTime(entry.duration);
@@ -470,12 +475,12 @@ try {
 } catch {}
 
 const qualityFor = (choice) =>
-  choice === "audio" ? { audioOnly: true } : choice === "best" ? undefined : { maxHeight: Number(choice) };
+  choice === "audio" ? { audioOnly: true } : choice === "best" ? undefined : { maxLines: Number(choice) };
 
 function qualitySelect(entry) {
   // A file has one quality; for streams, offer the heights below the best one
   // known.
-  let best = entry.manifest?.height || entry.video?.height || Infinity;
+  let best = entry.manifest?.height || entry.video?.lines || Infinity;
   // #if youtube
   // YouTube's <video> shows only what is playing, so offer every height.
   if (entry.kind === "youtube") best = Infinity;

@@ -45,7 +45,7 @@ Click the toolbar button to list the videos on the current page, including embed
 
 - Each video shows a thumbnail, title, type (MP4 / HLS / DASH), resolution, length and whether it is playing. Hovering an item outlines that video on the page.
 - The title is editable and becomes the file name.
-- Pick a quality per download: best, a maximum height (1080p, 720p, …) or audio only (saved as `.m4a`). The last choice is remembered. Players without a manifest can only save what they fetched.
+- Pick a quality per download: best, a maximum resolution (1080p, 720p, …; the shorter side, so a 1080×1920 portrait video is 1080p) or audio only (saved as `.m4a`). The last choice is remembered. Players without a manifest can only save what they fetched.
 - Players fed through `blob:` or `srcObject` (MSE) are paired with the HLS / DASH manifests their frame loaded, or else with the media files it fetched (only files as long as that player's video are used, so preloaded neighbours and ads are left out). If nothing is found, start playback and reopen the popup.
 - DRM-protected streams are listed with their buttons disabled.
 - Live streams can be recorded from now (the live edge) or rewound as far as the stream allows (its DVR window; YouTube DVR streams from their very start). Stop and save from the downloads section.
@@ -86,8 +86,8 @@ Current code (after v0.7.0), in a logged-in Chrome profile:
 | Site | How it is fetched | What was checked |
 |---|---|---|
 | YouTube (full edition) | youtubei.js, like yt-dlp | Audio only (19 s, AAC); live, "record now" (1080p + audio) |
-| X | HLS | 1:29 post video, 1920p + audio |
-| Instagram | Media files (no manifest) | 19.5 s reel, 1920p + audio |
+| X | HLS | 1:29 portrait post video, 1080p (1080×1920) + audio; with a 720p limit, 720×1280 |
+| Instagram | Media files (no manifest) | 19.5 s portrait reel, 1080p (1080×1920) + audio |
 | Facebook | Media files (no manifest) | 4:13 video, 360p + audio (the quality the player had loaded) |
 | TikTok | Media files (no manifest) | 6:04 video, 576p + audio |
 | bilibili | Media files (no manifest) | 47 min video, 480p + audio (logged out; higher qualities need an account) |
