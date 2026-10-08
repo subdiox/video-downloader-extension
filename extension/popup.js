@@ -100,7 +100,6 @@ function inspectVideos() {
       docTitle,
       thumb: thumbnail(v),
       width: v.videoWidth,
-      height: v.videoHeight,
       // "1080p" names the shorter side, also for portrait (1080x1920) video.
       lines: Math.min(v.videoWidth, v.videoHeight),
       duration: Number.isFinite(v.duration) ? v.duration : v.duration === Infinity ? Infinity : null,
@@ -182,33 +181,32 @@ function parseManifest(url, text) {
   if (isDash) {
     const doc = new DOMParser().parseFromString(text, "application/xml");
     const mpd = doc.documentElement;
-    const heights = [...doc.getElementsByTagNameNS("*", "Representation")].map((r) =>
+    const lines = [...doc.getElementsByTagNameNS("*", "Representation")].map((r) =>
       Math.min(Number(r.getAttribute("width")) || 0, Number(r.getAttribute("height")) || 0)
     );
     return {
       ...info,
       live: mpd.getAttribute("type") === "dynamic",
       drm: doc.getElementsByTagNameNS("*", "ContentProtection").length > 0,
-      height: Math.max(0, ...heights) || null,
-      levels: levelsOf(heights),
+      levels: levelsOf(lines),
       duration: parseIsoDuration(mpd.getAttribute("mediaPresentationDuration")),
     };
   }
 
   const lines = text.split(/\r?\n/).map((l) => l.trim());
   if (text.includes("#EXT-X-STREAM-INF")) {
-    const heights = [];
+    const lines = [];
     lines.forEach((line, i) => {
       if (line.startsWith("#EXT-X-STREAM-INF")) {
         const [, w, h] = line.match(/RESOLUTION=(\d+)x(\d+)/) ?? [];
-        heights.push(Math.min(Number(w) || 0, Number(h) || 0));
+        lines.push(Math.min(Number(w) || 0, Number(h) || 0));
         const uri = lines.slice(i + 1).find((l) => l && !l.startsWith("#"));
         if (uri) info.children.push(new URL(uri, url).href);
       }
       const media = line.startsWith("#EXT-X-MEDIA:") && line.match(/URI="([^"]+)"/);
       if (media) info.children.push(new URL(media[1], url).href);
     });
-    return { ...info, master: true, height: Math.max(0, ...heights) || null, levels: levelsOf(heights), drm: DRM_KEY.test(text) };
+    return { ...info, master: true, levels: levelsOf(lines), drm: DRM_KEY.test(text) };
   }
 
   const duration = [...text.matchAll(/#EXTINF:([\d.]+)/g)].reduce((sum, m) => sum + Number(m[1]), 0);
@@ -485,8 +483,6 @@ function tags(entry) {
   // #endif
   if (entry.kind === "file") out.push([new URL(entry.url).pathname.match(/\.(\w{2,4})$/)?.[1]?.toUpperCase() ?? msg("tagVideo")]);
   if (m) out.push([m.type]);
-  const lines = v?.lines || m?.height;
-  if (lines) out.push([`${lines}p`]);
   if (entry.duration === Infinity) out.push([msg("tagLive"), "warn"]);
   else {
     const time = formatTime(entry.duration);
