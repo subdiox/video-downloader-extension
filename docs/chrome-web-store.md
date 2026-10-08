@@ -20,7 +20,6 @@ Japanese localization (both come from `extension/_locales`, so the store shows t
 > - Live-stream recording, from now or from as far back as the stream allows
 > - Choose the quality, or save the audio only
 > - Videos that look like ads are flagged, so the main video is easy to tell apart
-> - Download every video linked from a listing page at once
 >
 > DRM-protected videos cannot be saved (the extension detects them and stops).
 > Only use it for videos you own or are allowed to save.

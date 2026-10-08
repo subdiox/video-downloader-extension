@@ -652,11 +652,6 @@ chrome.storage.session.onChanged.addListener((changes) => {
 });
 setInterval(renderJobs, 1000); // file download progress comes from chrome.downloads
 
-$("collect").addEventListener("click", async () => {
-  await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["collect.js"] });
-  window.close(); // collect.js shows its own confirmation and progress in the page
-});
-
 renderJobs();
 const videosReady = renderVideos().catch((e) => {
   console.error(e);

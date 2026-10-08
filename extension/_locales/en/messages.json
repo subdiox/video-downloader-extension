@@ -137,81 +137,6 @@
   "yt_errNoLiveManifest": {
     "message": "The live stream has no manifest"
   },
-  "collectNoLinks": {
-    "message": "No links to videos found on this page"
-  },
-  "collectFetchingList": {
-    "message": "Reading the list… $p1$/$p2$",
-    "description": "$1: page, $2: last page",
-    "placeholders": {
-      "p1": {
-        "content": "$1"
-      },
-      "p2": {
-        "content": "$2"
-      }
-    }
-  },
-  "collectOnlyThisPage": {
-    "message": " (this page only; the list has $p1$ pages)",
-    "description": "Appended to collectConfirm. $1: page count",
-    "placeholders": {
-      "p1": {
-        "content": "$1"
-      }
-    }
-  },
-  "collectConfirm": {
-    "message": "Found $p1$ video pages$p2$. Download them?",
-    "description": "$1: count, $2: collectOnlyThisPage or empty",
-    "placeholders": {
-      "p1": {
-        "content": "$1"
-      },
-      "p2": {
-        "content": "$2"
-      }
-    }
-  },
-  "collectParsing": {
-    "message": "Reading video pages… $p1$/$p2$",
-    "description": "$1: current, $2: total",
-    "placeholders": {
-      "p1": {
-        "content": "$1"
-      },
-      "p2": {
-        "content": "$2"
-      }
-    }
-  },
-  "collectQueued": {
-    "message": "Added $p1$ to the queue",
-    "description": "$1: count",
-    "placeholders": {
-      "p1": {
-        "content": "$1"
-      }
-    }
-  },
-  "collectFailedPages": {
-    "message": " / $p1$ pages had no video (see the console)",
-    "description": "Appended to collectQueued. $1: count",
-    "placeholders": {
-      "p1": {
-        "content": "$1"
-      }
-    }
-  },
-  "collectError": {
-    "message": "Error: $p1$",
-    "description": "$1: error details",
-    "placeholders": {
-      "p1": {
-        "content": "$1"
-      }
-    }
-  },
   "tagVideo": {
     "message": "Video",
     "description": "Type tag when the file extension is unknown"
@@ -299,9 +224,6 @@
   },
   "downloadsHeading": {
     "message": "Downloads"
-  },
-  "collectButton": {
-    "message": "Download every video linked from this page…"
   },
   "statusWaiting": {
     "message": "Waiting"

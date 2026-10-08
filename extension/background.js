@@ -503,14 +503,6 @@ function makeJob({ url, documentUrl, pageUrl, title, sourceTabId }) {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message.type) {
-    // collect.js: jobs are { url, title, pageUrl } for each linked video page.
-    case "enqueue": {
-      const jobs = message.jobs.map((j) =>
-        makeJob({ url: j.url, documentUrl: j.pageUrl, pageUrl: j.pageUrl, title: j.title, sourceTabId: sender.tab?.id })
-      );
-      enqueue(jobs).then((added) => sendResponse({ added }));
-      return true;
-    }
     // Popup: one entry the user picked. Its kind is known (a blob: player's
     // manifest may not end in .m3u8/.mpd).
     case "enqueue-one": {

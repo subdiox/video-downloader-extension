@@ -122,74 +122,6 @@
   "yt_errNoLiveManifest": {
     "message": "ライブ配信のマニフェストがありません"
   },
-  "collectNoLinks": {
-    "message": "このページに動画へのリンクが見つかりません"
-  },
-  "collectFetchingList": {
-    "message": "一覧を取得中… $p1$/$p2$",
-    "placeholders": {
-      "p1": {
-        "content": "$1"
-      },
-      "p2": {
-        "content": "$2"
-      }
-    }
-  },
-  "collectOnlyThisPage": {
-    "message": "（$p1$ページあるため、このページのみ）",
-    "placeholders": {
-      "p1": {
-        "content": "$1"
-      }
-    }
-  },
-  "collectConfirm": {
-    "message": "$p1$件の動画ページが見つかりました$p2$。ダウンロードしますか？",
-    "placeholders": {
-      "p1": {
-        "content": "$1"
-      },
-      "p2": {
-        "content": "$2"
-      }
-    }
-  },
-  "collectParsing": {
-    "message": "動画ページを解析中… $p1$/$p2$",
-    "placeholders": {
-      "p1": {
-        "content": "$1"
-      },
-      "p2": {
-        "content": "$2"
-      }
-    }
-  },
-  "collectQueued": {
-    "message": "$p1$件をキューに追加",
-    "placeholders": {
-      "p1": {
-        "content": "$1"
-      }
-    }
-  },
-  "collectFailedPages": {
-    "message": " / 動画が取れなかったページ $p1$件（コンソール参照）",
-    "placeholders": {
-      "p1": {
-        "content": "$1"
-      }
-    }
-  },
-  "collectError": {
-    "message": "エラー: $p1$",
-    "placeholders": {
-      "p1": {
-        "content": "$1"
-      }
-    }
-  },
   "tagVideo": {
     "message": "動画"
   },
@@ -271,9 +203,6 @@
   },
   "downloadsHeading": {
     "message": "ダウンロード中"
-  },
-  "collectButton": {
-    "message": "このページからリンクされている動画を全部ダウンロード…"
   },
   "statusWaiting": {
     "message": "待機中"

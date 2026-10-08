@@ -134,7 +134,6 @@
   .bar > div { height: 100%; width: 0; background: var(--accent); transition: width 0.3s; }
   .bar.live > div { width: 100%; background: var(--danger); opacity: 0.7; }
   .bar.waiting > div { width: 0; }
-  .wide { width: 100%; }
 </style>
 </head>
 <body>
@@ -146,9 +145,6 @@
   <section id="jobs-section" hidden>
     <h2 data-i18n="downloadsHeading"></h2>
     <div id="jobs"></div>
-  </section>
-  <section>
-    <button id="collect" class="secondary wide" data-i18n="collectButton"></button>
   </section>
   <script src="popup.js" type="module"></script>
 </body>

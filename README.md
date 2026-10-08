@@ -51,7 +51,6 @@ Click the toolbar button to list the videos on the current page, including embed
 - Live streams can be recorded from now (the live edge) or rewound as far as the stream allows (its DVR window; YouTube DVR streams from their very start). Stop and save from the downloads section.
 - Videos that look like ads (ad-server URLs, short clips covering the main player) are tagged and listed last.
 - YouTube: play the video in the tab for a moment before opening the popup; the extension reuses the PO token YouTube's own player minted. If YouTube refuses partway, play a little longer and try again.
-- On listing pages, the button at the bottom downloads every linked video.
 - Errors, recordings and finished downloads are reported as system notifications; clicking "Saved" shows the file.
 - Failed requests (network errors, 5xx, 429) are retried a few times with backoff.
 
@@ -63,7 +62,6 @@ Files are saved to `Downloads/<title>.mp4` (Chrome numbers duplicates).
 |---|---|
 | `extension/background.js` | Queue, DNR rules (Referer/Origin), manifest detection |
 | `extension/popup.html` / `popup.js` | Toolbar popup (video list, progress) |
-| `extension/collect.js` | Collects video pages from a listing page |
 | `src/offscreen/main.js` | HLS/DASH → MP4 with Mediabunny, written to OPFS |
 | `src/offscreen/dash.js` | Turns an MPD into virtual HLS playlists for Mediabunny (mpd-parser) |
 | `src/offscreen/youtube.js` | YouTube via youtubei.js: formats, signature/n deciphering, ranged downloads, merge (live: the ANDROID client's HLS) |
