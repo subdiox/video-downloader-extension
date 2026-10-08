@@ -8,6 +8,7 @@
 // ~300 MB; like yt-dlp, a fresh manifest then gives new URLs to carry on with.
 
 import { BufferSource, CustomPathedSource } from "mediabunny";
+import { UserError } from "./errors.js";
 
 const VIRTUAL = "https://bvdl.invalid/";
 
@@ -46,7 +47,7 @@ export async function youtubeLiveSource(getMpdUrl) {
   let mpd = await (await fetch(await getMpdUrl())).text();
   let reps = representations(mpd);
   const { video, audio } = reps;
-  if (!video || !audio) throw new Error("ライブ配信の映像/音声が見つかりません");
+  if (!video || !audio) throw new UserError("yt_errLiveTracks");
   const seconds = segmentSeconds(mpd);
 
   let refreshing = null;
@@ -66,7 +67,7 @@ export async function youtubeLiveSource(getMpdUrl) {
       const res = await fetch(`${reps[kind].base}sq/${sq}`).catch((e) => ({ ok: false, status: 0, error: e }));
       if (res.ok) return new Uint8Array(await res.arrayBuffer());
       await res.body?.cancel();
-      if (attempt >= 5) throw new Error(`ライブ配信のセグメント ${sq} を取得できません (HTTP ${res.status})`);
+      if (attempt >= 5) throw new UserError("yt_errLiveSegment", sq, res.status);
       if (res.status === 403) await refresh();
       else await new Promise((r) => setTimeout(r, 500 * 2 ** attempt));
     }
@@ -84,7 +85,7 @@ export async function youtubeLiveSource(getMpdUrl) {
           head = seq;
           break;
         }
-        if (res.status !== 403 || attempt >= 2) throw new Error(`ライブ配信の位置を取得できません (HTTP ${res.status})`);
+        if (res.status !== 403 || attempt >= 2) throw new UserError("yt_errLivePosition", res.status);
         await refresh();
       }
       checkedAt = Date.now();

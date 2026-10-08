@@ -15,6 +15,7 @@ import { Innertube, Platform } from "youtubei.js/web";
 import { VideoPlaybackAbrRequest } from "googlevideo/protos";
 import { ALL_FORMATS, BlobSource, Conversion, Input, Mp4OutputFormat, Output, StreamTarget } from "mediabunny";
 import { callSandbox } from "./sandbox-bridge.js";
+import { UserError } from "./errors.js";
 
 // youtubei.js ships no evaluator for browsers; the sandbox page may eval.
 Platform.shim.eval = (data) => callSandbox("eval", { code: data.output });
@@ -51,7 +52,7 @@ async function contentLength(url, signal) {
   const res = await fetch(url, { headers: { Range: "bytes=0-0" }, signal });
   const total = Number(res.headers.get("content-range")?.split("/")[1]);
   await res.body?.cancel();
-  if (!total) throw new Error(`ファイルサイズを取得できません (HTTP ${res.status})`);
+  if (!total) throw new UserError("yt_errSize", res.status);
   return total;
 }
 
@@ -62,7 +63,7 @@ async function downloadFormat(url, total, handle, onBytes, signal) {
       const end = Math.min(start + CHUNK, total) - 1;
       const res = await fetch(url, { headers: { Range: `bytes=${start}-${end}` }, signal });
       if (res.status === 403) {
-        throw new Error("YouTubeに途中で拒否されました。このタブで動画をしばらく再生してから、もう一度試してください");
+        throw new UserError("yt_errRefused");
       }
       if (res.status !== 206 && res.status !== 200) throw new Error(`HTTP ${res.status} (${start}-${end})`);
       const data = new Uint8Array(await res.arrayBuffer());
@@ -82,13 +83,13 @@ async function downloadFormat(url, total, handle, onBytes, signal) {
  */
 export async function openYouTube(pageUrl, poBodies) {
   const videoId = youtubeVideoId(pageUrl);
-  if (!videoId) throw new Error("YouTubeの動画IDが見つかりません");
+  if (!videoId) throw new UserError("yt_errNoId");
 
   const poToken = poTokenFromBodies(poBodies) ?? undefined;
   const yt = await Innertube.create({ po_token: poToken, retrieve_player: true, fetch: (input, init) => fetch(input, init) });
   const info = await yt.getBasicInfo(videoId, { client: CLIENT });
   const status = info.playability_status;
-  if (status?.status !== "OK") throw new Error(`再生できない動画です: ${status?.reason ?? status?.status}`);
+  if (status?.status !== "OK") throw new UserError("yt_errUnplayable", status?.reason ?? status?.status);
 
   let liveManifest = null;
   let liveDash = null;
@@ -97,7 +98,7 @@ export async function openYouTube(pageUrl, poBodies) {
     // ANDROID's are served.
     const live = await yt.getBasicInfo(videoId, { client: LIVE_CLIENT });
     liveManifest = live.streaming_data?.hls_manifest_url;
-    if (!liveManifest) throw new Error("ライブ配信のマニフェストがありません");
+    if (!liveManifest) throw new UserError("yt_errNoLiveManifest");
     // Like yt-dlp: the PO token goes into the manifest URL's path.
     if (poToken) liveManifest = `${liveManifest.replace(/\/$/, "")}/pot/${poToken}`;
     if (info.page[0].video_details?.is_live_dvr_enabled && live.streaming_data?.dash_manifest_url) {
@@ -105,7 +106,7 @@ export async function openYouTube(pageUrl, poBodies) {
       liveDash = async () => {
         const url = first ?? (await yt.getBasicInfo(videoId, { client: LIVE_CLIENT })).streaming_data?.dash_manifest_url;
         first = null;
-        if (!url) throw new Error("ライブ配信のマニフェストがありません");
+        if (!url) throw new UserError("yt_errNoLiveManifest");
         return url;
       };
     }

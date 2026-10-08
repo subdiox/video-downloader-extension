@@ -10,6 +10,7 @@
   globalThis.__bvdlCollecting = true;
 
   const MAX_PAGES = 20;
+  const msg = (key, ...substitutions) => chrome.i18n.getMessage(key, substitutions.map(String));
   const VIDEO_EXT = /\.(mp4|m4v|webm|mov|mkv|ogv)(\?|$)/i;
 
   let statusEl;
@@ -129,28 +130,28 @@
 
   async function run() {
     const shape = videoShape(document);
-    if (!shape) return setStatus("このページに動画へのリンクが見つかりません", { hideAfter: 5000 });
+    if (!shape) return setStatus(msg("collectNoLinks"), { hideAfter: 5000 });
 
     const pages = pagination(document);
     const followPages = pages && pages.last <= MAX_PAGES;
     const links = new Set(videoLinks(document, shape));
     if (followPages) {
       for (let n = 1; n <= pages.last; n++) {
-        setStatus(`一覧を取得中… ${n}/${pages.last}`);
+        setStatus(msg("collectFetchingList", n, pages.last));
         videoLinks(await fetchDoc(pages.pageUrl(n)), shape).forEach((u) => links.add(u));
       }
     }
 
-    const note = pages && !followPages ? `（${pages.last}ページあるため、このページのみ）` : "";
+    const note = pages && !followPages ? msg("collectOnlyThisPage", pages.last) : "";
     setStatus("");
     statusEl.remove();
-    if (!confirm(`${links.size}件の動画ページが見つかりました${note}。ダウンロードしますか？`)) return;
+    if (!confirm(msg("collectConfirm", links.size, note))) return;
 
     const jobs = [];
     const failed = [];
     let i = 0;
     for (const url of links) {
-      setStatus(`動画ページを解析中… ${++i}/${links.size}`);
+      setStatus(msg("collectParsing", ++i, links.size));
       try {
         const job = parseVideoPage(await fetchDoc(url), url);
         job ? jobs.push(job) : failed.push(url);
@@ -160,14 +161,14 @@
       }
     }
     const { added } = await chrome.runtime.sendMessage({ type: "enqueue", jobs });
-    setStatus(`${added}件をキューに追加` + (failed.length ? ` / 動画が取れなかったページ ${failed.length}件（コンソール参照）` : ""), { hideAfter: 6000 });
+    setStatus(msg("collectQueued", added) + (failed.length ? msg("collectFailedPages", failed.length) : ""), { hideAfter: 6000 });
     if (failed.length) console.warn("[Video Downloader] no plain video found on", failed);
   }
 
   run()
     .catch((e) => {
       console.error(e);
-      setStatus(`エラー: ${e.message}`, { hideAfter: 8000 });
+      setStatus(msg("collectError", e.message), { hideAfter: 8000 });
     })
     .finally(() => {
       globalThis.__bvdlCollecting = false;

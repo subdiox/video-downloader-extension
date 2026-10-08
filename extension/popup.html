@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ja">
+<html>
 <head>
 <meta charset="utf-8">
 <title>Video Downloader</title>
@@ -132,15 +132,15 @@
 <body>
   <header>Video Downloader</header>
   <section>
-    <h2 id="videos-heading">このページの動画</h2>
-    <div id="videos"><div class="empty">読み込み中…</div></div>
+    <h2 id="videos-heading" data-i18n="videosHeading"></h2>
+    <div id="videos"><div class="empty" data-i18n="loading"></div></div>
   </section>
   <section id="jobs-section" hidden>
-    <h2>ダウンロード中</h2>
+    <h2 data-i18n="downloadsHeading"></h2>
     <div id="jobs"></div>
   </section>
   <section>
-    <button id="collect" class="secondary wide">このページからリンクされている動画を全部ダウンロード…</button>
+    <button id="collect" class="secondary wide" data-i18n="collectButton"></button>
   </section>
   <script src="popup.js" type="module"></script>
 </body>

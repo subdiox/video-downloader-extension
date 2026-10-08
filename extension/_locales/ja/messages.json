@@ -1,0 +1,273 @@
+{
+  "extName": {
+    "message": "Video Downloader"
+  },
+  "extDescription": {
+    "message": "再生中の動画を保存。動画ファイル、HLS・DASH ストリーム、ライブ配信の録画に対応し、映像と音声を 1 本の MP4 にまとめます。"
+  },
+  "yt_extDescription": {
+    "message": "再生中の動画を保存。動画ファイル、HLS・DASH ストリーム、YouTube、ライブ配信の録画に対応し、映像と音声を 1 本の MP4 にまとめます。"
+  },
+  "actionTitleRecording": {
+    "message": "Video Downloader（録画中）"
+  },
+  "toastRefused": {
+    "message": "動画を取得できませんでした（サーバーに拒否されました）"
+  },
+  "toastRecording": {
+    "message": "ライブ配信を録画中です。拡張機能のボタンから停止して保存できます"
+  },
+  "errManifest": {
+    "message": "マニフェストを取得できません (HTTP $p1$)",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "errEncrypted": {
+    "message": "暗号化/DRMのため取得できません: $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "errDownloadFailed": {
+    "message": "ダウンロード失敗: $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "errNoTracks": {
+    "message": "変換できるトラックがありません"
+  },
+  "errNoData": {
+    "message": "データがありません"
+  },
+  "errAborted": {
+    "message": "中止しました"
+  },
+  "errDrm": {
+    "message": "DRMで保護されたストリームは非対応です"
+  },
+  "errMpdNoTracks": {
+    "message": "MPDに再生可能なトラックがありません"
+  },
+  "yt_errYouTube": {
+    "message": "YouTube: $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "yt_errLiveTracks": {
+    "message": "ライブ配信の映像/音声が見つかりません"
+  },
+  "yt_errLiveSegment": {
+    "message": "ライブ配信のセグメント $p1$ を取得できません (HTTP $p2$)",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      },
+      "p2": {
+        "content": "$2"
+      }
+    }
+  },
+  "yt_errLivePosition": {
+    "message": "ライブ配信の位置を取得できません (HTTP $p1$)",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "yt_errSize": {
+    "message": "ファイルサイズを取得できません (HTTP $p1$)",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "yt_errRefused": {
+    "message": "YouTubeに途中で拒否されました。このタブで動画をしばらく再生してから、もう一度試してください"
+  },
+  "yt_errNoId": {
+    "message": "YouTubeの動画IDが見つかりません"
+  },
+  "yt_errUnplayable": {
+    "message": "再生できない動画です: $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "yt_errNoLiveManifest": {
+    "message": "ライブ配信のマニフェストがありません"
+  },
+  "collectNoLinks": {
+    "message": "このページに動画へのリンクが見つかりません"
+  },
+  "collectFetchingList": {
+    "message": "一覧を取得中… $p1$/$p2$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      },
+      "p2": {
+        "content": "$2"
+      }
+    }
+  },
+  "collectOnlyThisPage": {
+    "message": "（$p1$ページあるため、このページのみ）",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "collectConfirm": {
+    "message": "$p1$件の動画ページが見つかりました$p2$。ダウンロードしますか？",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      },
+      "p2": {
+        "content": "$2"
+      }
+    }
+  },
+  "collectParsing": {
+    "message": "動画ページを解析中… $p1$/$p2$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      },
+      "p2": {
+        "content": "$2"
+      }
+    }
+  },
+  "collectQueued": {
+    "message": "$p1$件をキューに追加",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "collectFailedPages": {
+    "message": " / 動画が取れなかったページ $p1$件（コンソール参照）",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "collectError": {
+    "message": "エラー: $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "tagVideo": {
+    "message": "動画"
+  },
+  "tagLive": {
+    "message": "ライブ"
+  },
+  "tagAd": {
+    "message": "広告の可能性"
+  },
+  "tagDrm": {
+    "message": "DRM（非対応）"
+  },
+  "tagPlaying": {
+    "message": "再生中"
+  },
+  "tagEmbedded": {
+    "message": "埋め込み: $p1$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "titleTooltip": {
+    "message": "保存するファイル名（編集できます）"
+  },
+  "btnRecordNow": {
+    "message": "今から録画"
+  },
+  "btnRecordNowTip": {
+    "message": "押した時点から録画します"
+  },
+  "btnRecordRewind": {
+    "message": "さかのぼって録画"
+  },
+  "btnRecordRewindTip": {
+    "message": "配信をさかのぼれる範囲の一番古いところから録画します（サイトによっては配信の最初まで戻れません）"
+  },
+  "btnDownload": {
+    "message": "ダウンロード"
+  },
+  "noteNoStream": {
+    "message": "ストリームを検出できません。再生を始めてから開き直してください"
+  },
+  "noteAdded": {
+    "message": "追加しました"
+  },
+  "noteAlreadyAdded": {
+    "message": "すでに追加されています"
+  },
+  "videosHeading": {
+    "message": "このページの動画"
+  },
+  "videosHeadingCount": {
+    "message": "このページの動画（$p1$）",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "noVideos": {
+    "message": "動画が見つかりません。再生を始めてから開き直してください"
+  },
+  "loading": {
+    "message": "読み込み中…"
+  },
+  "unavailable": {
+    "message": "このページでは使えません"
+  },
+  "downloadsHeading": {
+    "message": "ダウンロード中"
+  },
+  "collectButton": {
+    "message": "このページからリンクされている動画を全部ダウンロード…"
+  },
+  "statusWaiting": {
+    "message": "待機中"
+  },
+  "statusRecording": {
+    "message": "録画中"
+  },
+  "statusSaving": {
+    "message": "保存中"
+  },
+  "statusPreparing": {
+    "message": "準備中"
+  },
+  "btnStopSave": {
+    "message": "停止して保存"
+  }
+}

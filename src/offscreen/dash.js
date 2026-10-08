@@ -6,10 +6,15 @@
 import { CustomPathedSource, BufferSource, UrlSource } from "mediabunny";
 import { parse, addSidxSegmentsToPlaylist } from "mpd-parser";
 import parseSidx from "mux.js/lib/tools/parse-sidx";
+import { UserError } from "./errors.js";
 
 const VIRTUAL = "https://bvdl.invalid/";
 
-export class DrmError extends Error {}
+class DrmError extends UserError {
+  constructor() {
+    super("errDrm");
+  }
+}
 
 export const isMpd = (text) => /<MPD[\s>]/.test(text.slice(0, 4096));
 
@@ -21,7 +26,7 @@ function pickVariants(manifest) {
     .flatMap((rendition) => rendition.playlists ?? []);
   const audio = audioPlaylists.sort((a, b) => (b.attributes.BANDWIDTH ?? 0) - (a.attributes.BANDWIDTH ?? 0))[0];
   for (const p of [video, audio]) {
-    if (p?.contentProtection && Object.keys(p.contentProtection).length) throw new DrmError("DRMで保護されたストリームは非対応です");
+    if (p?.contentProtection && Object.keys(p.contentProtection).length) throw new DrmError();
   }
   return { video, audio };
 }
@@ -104,7 +109,7 @@ export function dashSource(mpdUrl, firstText, fetchInit) {
     }
     const manifest = parse(text, { manifestUri: mpdUrl, NOW: Date.now(), clientOffset: serverOffset });
     const variants = pickVariants(manifest);
-    if (!variants.video && !variants.audio) throw new Error("MPDに再生可能なトラックがありません");
+    if (!variants.video && !variants.audio) throw new UserError("errMpdNoTracks");
     await Promise.all([resolveSidx(variants.video, fetchInit), resolveSidx(variants.audio, fetchInit)]);
     return variants;
   }

@@ -9,7 +9,7 @@ Upload `build/video-downloader-store-<version>.zip`, created by `npm run package
 **Summary (max 132 characters)**
 > Save videos playing on the current page: video files, HLS and DASH streams, and live-stream recording, merged into one MP4.
 
-Japanese localization:
+Japanese localization (both come from `extension/_locales`, so the store shows the one matching the viewer's language):
 > 再生中の動画を保存。動画ファイル、HLS・DASH ストリーム、ライブ配信の録画に対応し、映像と音声を 1 本の MP4 にまとめます。
 
 **Description**

@@ -32,7 +32,7 @@ async function saveState(state) {
   const remaining = state.queue.length + entries.filter((e) => !e.live).length;
   await chrome.action.setBadgeText({ text: remaining ? String(remaining) : recording ? "REC" : "" });
   await chrome.action.setBadgeBackgroundColor({ color: recording ? "#d32f2f" : "#555" });
-  await chrome.action.setTitle({ title: recording ? "Video Downloader（録画中）" : "Video Downloader" });
+  await chrome.action.setTitle({ title: chrome.i18n.getMessage(recording ? "actionTitleRecording" : "extName") });
 }
 
 // Serialize every state mutation so concurrent events don't clobber each other.
@@ -126,6 +126,10 @@ async function ensureOffscreen() {
     justification: "Convert HLS/DASH streams to MP4 and hand them to chrome.downloads as blob URLs",
   });
 }
+
+// A message from the offscreen document: { key, substitutions } (which may
+// nest) or plain text.
+const t = (m) => (typeof m === "string" ? m : chrome.i18n.getMessage(m.key, m.substitutions.map(t)) || m.key);
 
 function toast(tabId, text) {
   if (tabId == null) return;
@@ -279,7 +283,7 @@ chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
     const url = findActive(state, (e) => e.tabId === tabId && e.downloadId == null);
     if (!url) return;
     console.error("not a download", state.active[url].job, tab.url);
-    toast(state.active[url].job.sourceTabId, "動画を取得できませんでした（サーバーに拒否されました）");
+    toast(state.active[url].job.sourceTabId, chrome.i18n.getMessage("toastRefused"));
     await finish(state, url);
   });
 });
@@ -296,7 +300,7 @@ chrome.runtime.onMessage.addListener((message) => {
         const entry = state.active[message.key];
         if (!entry) return;
         entry.live = true;
-        toast(entry.job.sourceTabId, "ライブ配信を録画中です。拡張機能のボタンから停止して保存できます");
+        toast(entry.job.sourceTabId, chrome.i18n.getMessage("toastRecording"));
         await pump(state);
       });
       break;
@@ -319,7 +323,7 @@ chrome.runtime.onMessage.addListener((message) => {
         const entry = state.active[message.key];
         if (!entry) return;
         console.error("stream failed", entry.job, message.error);
-        toast(entry.job.sourceTabId, message.error);
+        toast(entry.job.sourceTabId, t(message.error));
         await finish(state, message.key);
       });
       break;

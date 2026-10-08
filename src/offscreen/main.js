@@ -20,7 +20,8 @@ import {
   StreamTarget,
   UrlSource,
 } from "mediabunny";
-import { DrmError, dashSource, isMpd } from "./dash.js";
+import { dashSource, isMpd } from "./dash.js";
+import { UserError, errorPayload } from "./errors.js";
 // #if youtube
 import { downloadYouTube, openYouTube } from "./youtube.js";
 import { youtubeLiveSource } from "./youtube-live.js";
@@ -49,17 +50,17 @@ const send = (message) => chrome.runtime.sendMessage(message).catch(() => {});
 
 async function openInput(url) {
   const res = await fetch(url, FETCH_INIT);
-  if (!res.ok) throw new Error(`マニフェストを取得できません (HTTP ${res.status})`);
+  if (!res.ok) throw new UserError("errManifest", res.status);
   const text = await res.text();
   const source = isMpd(text) ? dashSource(res.url, text, FETCH_INIT) : new UrlSource(res.url, { requestInit: FETCH_INIT });
   return new Input({ source, formats: ALL_FORMATS });
 }
 
-function describeError(e) {
-  if (e instanceof DrmError) return e.message;
+// The error as a UserError: library errors are wrapped as-is.
+function userError(e) {
+  if (e instanceof UserError) return e;
   const message = String(e?.message ?? e);
-  if (/decrypt|encrypt|key|drm|protect/i.test(message)) return `暗号化/DRMのため取得できません: ${message}`;
-  return `ダウンロード失敗: ${message}`;
+  return new UserError(/decrypt|encrypt|key|drm|protect/i.test(message) ? "errEncrypted" : "errDownloadFailed", message);
 }
 
 // `openSource`, if given, supplies the input in place of fetching `url`.
@@ -98,7 +99,7 @@ async function run(key, url, liveFrom = "now", openSource = null) {
     // recording can still be finalized into a valid file.
     conversion = await Conversion.init({ input, output, composable: true, showWarnings: false, trim });
     if (!conversion.isValid || !conversion.utilizedTracks.length) {
-      throw new Error(conversion.discardedTracks.map((d) => d.reason).join(", ") || "変換できるトラックがありません");
+      throw conversion.discardedTracks.length ? new Error(conversion.discardedTracks.map((d) => d.reason).join(", ")) : new UserError("errNoTracks");
     }
 
     if (live) send({ type: "stream-live", key });
@@ -124,14 +125,14 @@ async function run(key, url, liveFrom = "now", openSource = null) {
     input.dispose?.();
 
     const file = await handle.getFile();
-    if (!file.size) throw new Error("データがありません");
+    if (!file.size) throw new UserError("errNoData");
     const blobUrl = URL.createObjectURL(new Blob([file], { type: "video/mp4" }));
     jobs.get(key).url = blobUrl;
     send({ type: "stream-done", key, files: [{ url: blobUrl, suffix: "", ext: ".mp4" }] });
   } catch (e) {
     console.error(e);
     await cleanup(key);
-    send({ type: "stream-failed", key, error: describeError(e) });
+    send({ type: "stream-failed", key, error: errorPayload(userError(e)) });
   }
 }
 
@@ -142,7 +143,7 @@ async function runYouTube(key, pageUrl, poBodies, liveFrom) {
   jobs.set(key, { stop: () => abort.abort(), fileNames });
   try {
     const video = await openYouTube(pageUrl, poBodies);
-    if (abort.signal.aborted) throw new Error("中止しました");
+    if (abort.signal.aborted) throw new UserError("errAborted");
     if (video.liveDash && liveFrom === "start") return run(key, null, "start", () => youtubeLiveSource(video.liveDash));
     if (video.liveManifest) return run(key, video.liveManifest, "now");
     let progress = 0;
@@ -167,14 +168,14 @@ async function runYouTube(key, pageUrl, poBodies, liveFrom) {
       clearInterval(reporter);
     }
     const file = await result.handle.getFile();
-    if (!file.size) throw new Error("データがありません");
+    if (!file.size) throw new UserError("errNoData");
     const blobUrl = URL.createObjectURL(new Blob([file], { type: "video/mp4" }));
     jobs.get(key).url = blobUrl;
     send({ type: "stream-done", key, files: [{ url: blobUrl, suffix: "", ext: ".mp4" }] });
   } catch (e) {
     console.error(e);
     await cleanup(key);
-    send({ type: "stream-failed", key, error: `YouTube: ${e?.message ?? e}` });
+    send({ type: "stream-failed", key, error: errorPayload(new UserError("yt_errYouTube", e instanceof UserError ? e : String(e?.message ?? e))) });
   }
 }
 // #endif

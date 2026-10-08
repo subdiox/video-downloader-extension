@@ -10,6 +10,10 @@
 const tabIdParam = Number(new URLSearchParams(location.search).get("tabId"));
 const tab = tabIdParam ? await chrome.tabs.get(tabIdParam) : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
 const $ = (id) => document.getElementById(id);
+const msg = (key, ...substitutions) => chrome.i18n.getMessage(key, substitutions.map(String));
+
+document.documentElement.lang = chrome.i18n.getUILanguage();
+for (const node of document.querySelectorAll("[data-i18n]")) node.textContent = msg(node.dataset.i18n);
 
 // --- Page inspection (runs inside each frame) ---------------------------------
 
@@ -398,20 +402,20 @@ function tags(entry) {
   // #if youtube
   if (entry.kind === "youtube") out.push(["YouTube"]);
   // #endif
-  if (entry.kind === "file") out.push([new URL(entry.url).pathname.match(/\.(\w{2,4})$/)?.[1]?.toUpperCase() ?? "動画"]);
+  if (entry.kind === "file") out.push([new URL(entry.url).pathname.match(/\.(\w{2,4})$/)?.[1]?.toUpperCase() ?? msg("tagVideo")]);
   if (m) out.push([m.type]);
   const height = v?.height || m?.height;
   if (height) out.push([`${height}p`]);
-  if (entry.duration === Infinity) out.push(["ライブ", "warn"]);
+  if (entry.duration === Infinity) out.push([msg("tagLive"), "warn"]);
   else {
     const time = formatTime(entry.duration);
     if (time) out.push([time]);
   }
-  if (entry.ad) out.push(["広告の可能性", "warn"]);
+  if (entry.ad) out.push([msg("tagAd"), "warn"]);
   if (m?.aes) out.push(["AES-128"]);
-  if (m?.drm) out.push(["DRM（非対応）", "warn"]);
-  if (v?.playing) out.push(["再生中", "playing"]);
-  if (v && v.frameId !== 0) out.push([`埋め込み: ${new URL(v.frameUrl).hostname}`]);
+  if (m?.drm) out.push([msg("tagDrm"), "warn"]);
+  if (v?.playing) out.push([msg("tagPlaying"), "playing"]);
+  if (v && v.frameId !== 0) out.push([msg("tagEmbedded", new URL(v.frameUrl).hostname)]);
   return out.map(([text, cls]) => el("span", { className: `tag ${cls ?? ""}`, textContent: text }));
 }
 
@@ -431,7 +435,7 @@ function renderEntry(entry) {
     placeholder();
   }
 
-  const title = el("input", { className: "title", value: entry.title, title: "保存するファイル名（編集できます）" });
+  const title = el("input", { className: "title", value: entry.title, title: msg("titleTooltip") });
   const live = entry.duration === Infinity;
   // Live streams: record from now, or from the oldest part the stream still
   // keeps (its DVR window, which may not reach the very start).
@@ -442,17 +446,17 @@ function renderEntry(entry) {
   // #endif
   const buttons = live
     ? [
-        el("button", { textContent: "今から録画", title: "押した時点から録画します" }),
+        el("button", { textContent: msg("btnRecordNow"), title: msg("btnRecordNowTip") }),
         el("button", {
           className: "secondary",
-          textContent: "さかのぼって録画",
-          title: "配信をさかのぼれる範囲の一番古いところから録画します（サイトによっては配信の最初まで戻れません）",
+          textContent: msg("btnRecordRewind"),
+          title: msg("btnRecordRewindTip"),
         }),
       ].slice(0, rewind ? 2 : 1)
-    : [el("button", { textContent: "ダウンロード" })];
+    : [el("button", { textContent: msg("btnDownload") })];
   const note = el("span", { className: "note" });
   if (entry.kind === "missing") {
-    note.textContent = "ストリームを検出できません。再生を始めてから開き直してください";
+    note.textContent = msg("noteNoStream");
   }
   if (entry.kind === "missing" || entry.manifest?.drm) buttons.forEach((b) => (b.disabled = true));
 
@@ -471,7 +475,7 @@ function renderEntry(entry) {
           liveFrom: live ? (i === 0 ? "now" : "start") : undefined,
         },
       });
-      note.textContent = added ? "追加しました" : "すでに追加されています";
+      note.textContent = msg(added ? "noteAdded" : "noteAlreadyAdded");
     })
   );
 
@@ -491,8 +495,8 @@ function renderEntry(entry) {
 async function renderVideos() {
   const list = $("videos");
   const entries = await collectEntries();
-  $("videos-heading").textContent = `このページの動画（${entries.length}）`;
-  list.replaceChildren(...(entries.length ? entries.map(renderEntry) : [el("div", { className: "empty", textContent: "動画が見つかりません。再生を始めてから開き直してください" })]));
+  $("videos-heading").textContent = msg("videosHeadingCount", entries.length);
+  list.replaceChildren(...(entries.length ? entries.map(renderEntry) : [el("div", { className: "empty", textContent: msg("noVideos") })]));
 }
 
 // --- Jobs ------------------------------------------------------------------
@@ -513,12 +517,12 @@ async function renderJobs() {
     let action = null;
     if (row.waiting) {
       bar.classList.add("waiting");
-      status.textContent = "待機中";
+      status.textContent = msg("statusWaiting");
     } else if (row.entry.live) {
       bar.classList.add("live");
       const p = progress.get(row.key);
-      status.textContent = ["録画中", formatTime(p?.seconds ?? 0), formatBytes(p?.bytes)].filter(Boolean).join(" · ");
-      action = el("button", { className: "stop", textContent: "停止して保存" });
+      status.textContent = [msg("statusRecording"), formatTime(p?.seconds ?? 0), formatBytes(p?.bytes)].filter(Boolean).join(" · ");
+      action = el("button", { className: "stop", textContent: msg("btnStopSave") });
       action.addEventListener("click", () => {
         action.disabled = true;
         chrome.runtime.sendMessage({ type: "stop-live", key: row.key });
@@ -527,11 +531,11 @@ async function renderJobs() {
       const [d] = await chrome.downloads.search({ id: row.entry.downloadId });
       const ratio = d?.totalBytes > 0 ? d.bytesReceived / d.totalBytes : 0;
       bar.firstChild.style.width = `${Math.round(ratio * 100)}%`;
-      status.textContent = d?.totalBytes > 0 ? `${Math.round(ratio * 100)}%` : "保存中";
+      status.textContent = d?.totalBytes > 0 ? `${Math.round(ratio * 100)}%` : msg("statusSaving");
     } else {
       const p = progress.get(row.key);
       bar.firstChild.style.width = `${Math.round((p?.progress ?? 0) * 100)}%`;
-      status.textContent = p ? [`${Math.round(p.progress * 100)}%`, formatBytes(p.bytes)].filter(Boolean).join(" · ") : "準備中";
+      status.textContent = p ? [`${Math.round(p.progress * 100)}%`, formatBytes(p.bytes)].filter(Boolean).join(" · ") : msg("statusPreparing");
     }
     const right = action ? el("div", { className: "actions" }, status, action) : status;
     nodes.push(el("div", { className: "job" }, el("span", { className: "name", textContent: row.job.title, title: row.job.title }), right, bar));
@@ -558,5 +562,5 @@ $("collect").addEventListener("click", async () => {
 renderJobs();
 renderVideos().catch((e) => {
   console.error(e);
-  $("videos").replaceChildren(el("div", { className: "empty", textContent: "このページでは使えません" }));
+  $("videos").replaceChildren(el("div", { className: "empty", textContent: msg("unavailable") }));
 });

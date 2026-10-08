@@ -8,7 +8,8 @@
 // "store" is for the Chrome Web Store: it drops every block marked
 //   // #if youtube ... // #endif        (JS)
 //   <!-- #if youtube --> ... <!-- #endif -->   (HTML)
-// along with the YouTube modules, the sandbox page and its manifest entry.
+// along with the YouTube modules, the sandbox page and its manifest entry,
+// and the yt_* messages in _locales.
 //
 // Every build also writes dist/THIRD_PARTY_LICENSES.txt: the license of each
 // npm package bundled into that edition, as their licenses require.
@@ -96,9 +97,6 @@ async function bundle(outdir, youtube) {
   fs.writeFileSync(path.join(outdir, "THIRD_PARTY_LICENSES.txt"), thirdPartyLicenses(result.metafile));
 }
 
-const STORE_DESCRIPTION =
-  "Save videos playing on the current page: video files, HLS and DASH streams, and live-stream recording, merged into one MP4.";
-
 function writeEdition(name, youtube) {
   const out = path.join(root, "build", name);
   fs.rmSync(out, { recursive: true, force: true });
@@ -108,12 +106,20 @@ function writeEdition(name, youtube) {
     if (!youtube && entry.name === "sandbox.html") continue;
     const from = path.join(extDir, entry.name);
     const to = path.join(out, entry.name);
-    if (entry.isDirectory()) fs.cpSync(from, to, { recursive: true, filter: (f) => !f.endsWith(".svg") });
+    if (entry.name === "_locales") {
+      // Messages whose key starts with yt_ belong to the YouTube support.
+      for (const lang of fs.readdirSync(from)) {
+        const messages = JSON.parse(fs.readFileSync(path.join(from, lang, "messages.json"), "utf8"));
+        const kept = Object.fromEntries(Object.entries(messages).filter(([key]) => youtube || !key.startsWith("yt_")));
+        fs.mkdirSync(path.join(to, lang), { recursive: true });
+        fs.writeFileSync(path.join(to, lang, "messages.json"), JSON.stringify(kept, null, 2) + "\n");
+      }
+    } else if (entry.isDirectory()) fs.cpSync(from, to, { recursive: true, filter: (f) => !f.endsWith(".svg") });
     else if (entry.name === "manifest.json") {
       const manifest = JSON.parse(fs.readFileSync(from, "utf8"));
       if (!youtube) {
         delete manifest.sandbox;
-        manifest.description = STORE_DESCRIPTION;
+        manifest.description = "__MSG_extDescription__";
       }
       fs.writeFileSync(to, JSON.stringify(manifest, null, 2) + "\n");
     } else if (/\.(js|html)$/.test(entry.name)) {

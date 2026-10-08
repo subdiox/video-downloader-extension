@@ -9,7 +9,7 @@ A Chrome extension (Manifest V3) that saves the videos playing on the current pa
 
 Streams are saved as a single MP4 with video and audio merged, copied without re-encoding. No ffmpeg needed.
 
-> The UI is currently in Japanese.
+The UI is in English and Japanese, following the browser's language (`chrome.i18n`; messages in `extension/_locales`). The store build drops the YouTube-only `yt_*` messages.
 
 ## Editions
 

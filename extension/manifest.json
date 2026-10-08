@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Video Downloader",
+  "name": "__MSG_extName__",
   "version": "0.7.0",
-  "description": "Pick a video on the current page from the toolbar popup and save it: plain files, HLS and DASH (incl. live), merged into one MP4.",
+  "description": "__MSG_yt_extDescription__",
+  "default_locale": "en",
   "permissions": [
     "declarativeNetRequest",
     "downloads",
@@ -18,7 +19,7 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "Video Downloader",
+    "default_title": "__MSG_extName__",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
