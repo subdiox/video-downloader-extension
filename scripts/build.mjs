@@ -9,6 +9,9 @@
 //   // #if youtube ... // #endif        (JS)
 //   <!-- #if youtube --> ... <!-- #endif -->   (HTML)
 // along with the YouTube modules, the sandbox page and its manifest entry.
+//
+// Every build also writes dist/THIRD_PARTY_LICENSES.txt: the license of each
+// npm package bundled into that edition, as their licenses require.
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -48,11 +51,49 @@ function bundleOptions(outdir, youtube) {
     format: "iife",
     target: "chrome120",
     minify: true,
-    legalComments: "external",
+    legalComments: "none",
+    metafile: true,
     outdir,
     plugins: [editionPlugin(youtube)],
     logLevel: "info",
   };
+}
+
+// The bundled npm packages, from esbuild's metafile, with their license texts.
+function thirdPartyLicenses(metafile) {
+  const dirs = new Set();
+  for (const input of Object.keys(metafile.inputs)) {
+    // "(disabled):" inputs are modules a package's browser field turns off.
+    const m = input.match(/^(node_modules\/(?:.*\/node_modules\/)?(?:@[^/]+\/)?[^/]+)\//);
+    if (m) dirs.add(path.join(root, m[1]));
+  }
+  const sections = [...dirs]
+    .map((dir) => {
+      const pkg = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
+      const repo = (typeof pkg.repository === "string" ? pkg.repository : pkg.repository?.url)
+        ?.replace(/^git\+/, "")
+        .replace(/\.git$/, "");
+      const file = fs.readdirSync(dir).find((f) => /^(licen[cs]e|copying)(\.|$)/i.test(f));
+      const text = file
+        ? fs.readFileSync(path.join(dir, file), "utf8").trim()
+        : `The package ships no license file; see ${repo ?? pkg.homepage ?? "its repository"} for the full text.`;
+      const header = [`${pkg.name} ${pkg.version}`, `License: ${pkg.license}`, repo && `Source: ${repo}`].filter(Boolean);
+      return { name: pkg.name, text: `${header.join("\n")}\n\n${text}` };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const rule = "\n\n" + "=".repeat(78) + "\n\n";
+  return (
+    "Video Downloader bundles the following third-party packages, unmodified.\n" +
+    "Mediabunny is MPL-2.0; its source code is available at the Source URL below." +
+    rule +
+    sections.map((s) => s.text).join(rule) +
+    "\n"
+  );
+}
+
+async function bundle(outdir, youtube) {
+  const result = await esbuild.build(bundleOptions(outdir, youtube));
+  fs.writeFileSync(path.join(outdir, "THIRD_PARTY_LICENSES.txt"), thirdPartyLicenses(result.metafile));
 }
 
 const STORE_DESCRIPTION =
@@ -87,17 +128,14 @@ if (args[0] === "package") {
   const { version } = JSON.parse(fs.readFileSync(path.join(extDir, "manifest.json"), "utf8"));
   for (const [name, youtube] of [["full", true], ["store", false]]) {
     const out = writeEdition(name, youtube);
-    await esbuild.build(bundleOptions(path.join(out, "dist"), youtube));
+    await bundle(path.join(out, "dist"), youtube);
     const zip = path.join(root, "build", `video-downloader-${name}-${version}.zip`);
     fs.rmSync(zip, { force: true });
     execFileSync("zip", ["-qr", zip, "."], { cwd: out });
     console.log(`${name}: ${path.relative(root, zip)}`);
   }
 } else {
-  const ctx = await esbuild.context(bundleOptions(path.join(extDir, "dist"), true));
-  if (args.includes("--watch")) await ctx.watch();
-  else {
-    await ctx.rebuild();
-    await ctx.dispose();
-  }
+  const outdir = path.join(extDir, "dist");
+  if (args.includes("--watch")) await (await esbuild.context(bundleOptions(outdir, true))).watch();
+  else await bundle(outdir, true);
 }

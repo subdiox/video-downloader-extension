@@ -1,60 +1,60 @@
-# Chrome ウェブストア申請メモ（store 版）
+# Chrome Web Store submission notes (store edition)
 
-申請するファイル: `npm run package` で作られる `build/video-downloader-store-<version>.zip`
+Upload `build/video-downloader-store-<version>.zip`, created by `npm run package`.
 
-## ストアの掲載情報
+## Listing
 
-**名前**: Video Downloader
+**Name**: Video Downloader
 
-**概要（132 文字以内）**
-> 再生中の動画を保存。動画ファイル、HLS・DASH ストリーム、ライブ配信の録画に対応し、映像と音声を 1 本の MP4 にまとめます。
-
-English:
+**Summary (max 132 characters)**
 > Save videos playing on the current page: video files, HLS and DASH streams, and live-stream recording, merged into one MP4.
 
-**説明**
-> ツールバーのボタンを押すと、今開いているページで再生できる動画が一覧で表示されます。サムネイル・タイトル・解像度・長さを見ながら、保存したい動画を選んでダウンロードできます。
+Japanese localization:
+> 再生中の動画を保存。動画ファイル、HLS・DASH ストリーム、ライブ配信の録画に対応し、映像と音声を 1 本の MP4 にまとめます。
+
+**Description**
+> Click the toolbar button to see every video the current page can play, with thumbnail, title, resolution and length, and pick the one to save.
 >
-> - MP4 / WebM などの動画ファイル
-> - HLS（AES-128 暗号化を含む）と DASH のストリームを、映像と音声をまとめた 1 本の MP4 に変換して保存（再エンコードなし）
-> - ライブ配信の録画（今から録画 / さかのぼれる範囲から録画）
-> - 広告と思われる動画には印を付けて、本編を見分けやすく表示
-> - 一覧ページからリンクされている動画をまとめてダウンロード
+> - Video files such as MP4 and WebM
+> - HLS (including AES-128) and DASH streams, saved as one MP4 with video and audio merged (no re-encoding)
+> - Live-stream recording, from now or from as far back as the stream allows
+> - Videos that look like ads are flagged, so the main video is easy to tell apart
+> - Download every video linked from a listing page at once
 >
-> DRM で保護された動画は保存できません（検出すると中止します）。
-> 著作権者の許可がある動画、または保存が認められている動画にのみ使用してください。
+> DRM-protected videos cannot be saved (the extension detects them and stops).
+> Only use it for videos you own or are allowed to save.
 
-**カテゴリ**: 仕事効率化（Productivity）またはツール
+**Category**: Productivity or Tools
 
-**スクリーンショット**: 1280×800 または 640×400。説明文・スクリーンショットに特定の動画サイトの名前やロゴ、著作物の映像を写さないこと（審査で落ちる原因になりやすい）。
+**Screenshots**: 1280×800 or 640×400. Keep specific video sites' names, logos and copyrighted footage out of the description and screenshots; they are a common reason for rejection.
 
-## プライバシーへの取り組み（Privacy practices タブ）
+## Privacy practices tab
 
-**単一用途（Single purpose）**
-> 閲覧中のページで再生されている動画を、ユーザーの操作でローカルに保存すること。
+**Single purpose**
+> Saving a video playing on the page the user is viewing to their computer, when the user asks for it.
 
-**権限の理由**
+**Permission justifications**
 
-| 権限 | 理由 |
+| Permission | Justification |
 |---|---|
-| `downloads` | 保存した動画をダウンロードフォルダに書き出すため |
-| `declarativeNetRequest` | 動画サーバーがページと同じ Referer / Origin を求める場合に、拡張機能自身のダウンロード要求にだけそれを付けるため |
-| `offscreen` | ストリームを MP4 にまとめる処理を、画面のない拡張機能ページで行うため |
-| `scripting` | ポップアップを開いたときに、ページ内の動画要素（URL・タイトル・サイズ）を調べるため |
-| `storage` | ダウンロードの順番待ちと進み具合を、拡張機能のセッション中だけ保持するため |
-| `webRequest` | ページが読み込んだ HLS / DASH のマニフェスト URL を見つけるため（通信の内容は変更しない） |
-| ホスト権限 `<all_urls>` | 動画はどのサイトにもあり、そのサイトの動画やマニフェストを取得・調べる必要があるため |
+| `downloads` | Writes the saved video to the Downloads folder |
+| `declarativeNetRequest` | Adds the page's Referer / Origin to the extension's own download requests, for video servers that require them |
+| `offscreen` | Merges streams into an MP4 in a windowless extension page |
+| `scripting` | When the popup opens, reads the page's video elements (URL, title, size) |
+| `storage` | Keeps the download queue and progress for the browser session |
+| `webRequest` | Finds the HLS / DASH manifest URLs a page loads (observe only; nothing is modified) |
+| Host permission `<all_urls>` | Videos can be on any site, and the extension has to read that site's videos and manifests |
 
-**リモートコード**: 使用していない（すべてのコードはパッケージに含まれる）。
+**Remote code**: No. All code ships in the package.
 
-**データの使用**
-- 収集するユーザーデータ: なし
-- 外部への送信: なし（動画の取得先は、ユーザーが見ているサイトのみ）
-- 以下に該当することを宣言する: 承認された用途以外でデータを販売・転用しない、信用力の判定などに使わない
+**Data usage**
+- User data collected: none
+- Data sent anywhere: none (videos are fetched only from the site the user is viewing)
+- Certify: data is not sold or used for purposes unrelated to the single purpose, and not used for creditworthiness or lending
 
-## 申請の流れ
+## Steps
 
-1. [Chrome Web Store デベロッパー ダッシュボード](https://chrome.google.com/webstore/devconsole) に登録（初回のみ登録料が必要）
-2. 「新しいアイテム」で ZIP をアップロード
-3. 掲載情報・プライバシーへの取り組みを上の内容で入力し、アイコン（128px）・スクリーンショットを登録
-4. 審査に提出
+1. Register at the [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole) (one-time registration fee)
+2. "New item" → upload the ZIP
+3. Fill in the listing and privacy practices as above; add the 128px icon and screenshots
+4. Submit for review

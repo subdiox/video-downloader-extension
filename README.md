@@ -1,75 +1,81 @@
 # Video Downloader
 
-ブラウザで再生している動画を保存する Chrome 拡張（Manifest V3）。
+A Chrome extension (Manifest V3) that saves the videos playing on the current page.
 
-- 通常の動画ファイル（MP4 / WebM など）
-- HLS（MPEG-TS / fMP4、AES-128、別音声トラック、ライブ）
-- DASH（SegmentTemplate / SegmentList / SegmentBase、ライブ）
-- YouTube（yt-dlp と同じ方式。最高画質の映像＋音声を結合。ライブ配信も録画できる）— full 版のみ
+- Plain video files (MP4, WebM, …)
+- HLS (MPEG-TS / fMP4, AES-128, separate audio tracks, live)
+- DASH (SegmentTemplate / SegmentList / SegmentBase, live)
+- YouTube, the way yt-dlp does it: best video + best audio merged, live streams included (full edition only)
 
-ストリームは映像と音声を 1 本の MP4 にまとめて保存する（再エンコードなし）。外部の ffmpeg は不要。
+Streams are saved as a single MP4 with video and audio merged, copied without re-encoding. No ffmpeg needed.
 
-## エディション
+> The UI is currently in Japanese.
 
-同じソースから 2 種類をビルドする。
+## Editions
 
-| エディション | 内容 | 配布 |
+Two editions are built from the same source.
+
+| Edition | Contents | Distribution |
 |---|---|---|
-| full | すべての機能（YouTube を含む） | このリポジトリ（自分でビルドして読み込む） |
-| store | YouTube 対応を除いたもの | Chrome ウェブストア |
+| full | Everything, including YouTube | This repository (build it and load it unpacked) |
+| store | Everything except YouTube | Chrome Web Store |
 
-YouTube 専用のコードは `// #if youtube` 〜 `// #endif`（HTML は `<!-- #if youtube -->` 〜 `<!-- #endif -->`）で囲んであり、store 版のビルドではこの範囲と YouTube 用のモジュール・sandbox ページを取り除く。
+YouTube-only code is wrapped in `// #if youtube` … `// #endif` (`<!-- #if youtube -->` … `<!-- #endif -->` in HTML). The store build drops those blocks, the YouTube modules and the sandbox page.
 
-## セットアップ
+## Setup
 
 ```sh
 npm install
-npm run build     # extension/dist を作る（full 版）
+npm run build     # builds extension/dist (full edition)
 ```
 
-`chrome://extensions` → デベロッパーモード → 「パッケージ化されていない拡張機能を読み込む」で `extension/` を選ぶ。
-`src/` を変更したら `npm run build`（または `npm run watch`）してから拡張を再読み込みする。
+Open `chrome://extensions`, turn on Developer mode, click "Load unpacked" and pick `extension/`.
+After changing `src/`, run `npm run build` (or keep `npm run watch` running) and reload the extension.
 
-配布用の ZIP:
+Distributable ZIPs:
 
 ```sh
-npm run package   # build/full, build/store と build/video-downloader-{full,store}-<version>.zip
+npm run package   # build/full, build/store and build/video-downloader-{full,store}-<version>.zip
 ```
 
-## 使い方
+## Usage
 
-ツールバーの拡張機能ボタンを押すと、今のページ（埋め込み iframe を含む）の動画が一覧で出る。
+Click the toolbar button to list the videos on the current page, including embedded iframes.
 
-- 各動画にサムネイル・タイトル・種類（MP4 / HLS / DASH）・解像度・長さ・「再生中」を表示。項目にマウスを乗せると、ページ上の該当する動画が枠で強調される。
-- タイトルはその場で編集でき、そのままファイル名になる。
-- `blob:` で再生している（MSE）プレーヤーは、そのフレームが読み込んだ HLS / DASH マニフェストと組にして表示する。出てこないときは再生を始めてから開き直す。
-- DRM 付きのストリームはボタンが押せない状態で表示される。
-- ライブ配信は「今から録画」（ライブの先端から）と「さかのぼって録画」（DVR で遡れる範囲すべて。YouTube は配信の最初から）を選べる。「ダウンロード中」欄の「停止して保存」で保存する。
-- 広告と思われる動画（広告配信 URL、本編に重なる短い動画）には「広告の可能性」が付き、一覧の下に回る。
-- YouTube は、そのタブで動画を少し再生してから開く（公式プレーヤーが発行した PO トークンを使うため）。途中で拒否されたら、もう少し再生してからやり直す。
-- 一覧ページでは「このページからリンクされている動画を全部ダウンロード…」でまとめて保存できる。
+- Each video shows a thumbnail, title, type (MP4 / HLS / DASH), resolution, length and whether it is playing. Hovering an item outlines that video on the page.
+- The title is editable and becomes the file name.
+- Players fed through `blob:` (MSE) are paired with the HLS / DASH manifests their frame loaded. If one is missing, start playback and reopen the popup.
+- DRM-protected streams are listed with their buttons disabled.
+- Live streams can be recorded from now (the live edge) or rewound as far as the stream allows (its DVR window; YouTube DVR streams from their very start). Stop and save from the downloads section.
+- Videos that look like ads (ad-server URLs, short clips covering the main player) are tagged and listed last.
+- YouTube: play the video in the tab for a moment before opening the popup; the extension reuses the PO token YouTube's own player minted. If YouTube refuses partway, play a little longer and try again.
+- On listing pages, the button at the bottom downloads every linked video.
 
-保存先: `ダウンロード/<タイトル>.mp4`（同名があれば番号が付く）
+Files are saved to `Downloads/<title>.mp4` (Chrome numbers duplicates).
 
-## 構成
+## Layout
 
-| ファイル | 役割 |
+| File | Role |
 |---|---|
-| `extension/background.js` | キュー、DNR ルール（Referer 付与）、マニフェスト検出 |
-| `extension/popup.html` / `popup.js` | ツールバーのポップアップ（動画一覧・進捗） |
-| `extension/collect.js` | 一覧ページから動画ページを集める |
-| `src/offscreen/main.js` | Mediabunny で HLS/DASH → MP4（OPFS に書き出し） |
-| `src/offscreen/dash.js` | mpd-parser で MPD を仮想 HLS プレイリストに変換して Mediabunny に渡す |
-| `src/offscreen/youtube.js` | youtubei.js で形式を取得、署名/n を解いて分割ダウンロード、Mediabunny で結合（ライブは ANDROID クライアントの HLS を録画） |
-| `src/offscreen/youtube-live.js` | YouTube ライブを配信の最初から録画（yt-dlp の `--live-from-start` と同じ。DASH のセグメントを番号で取得） |
-| `src/sandbox/main.js` | eval が使える sandbox ページ（YouTube のプレーヤー JS の署名変換を実行） |
-| `scripts/build.mjs` | full / store の 2 エディションをビルド |
+| `extension/background.js` | Queue, DNR rules (Referer/Origin), manifest detection |
+| `extension/popup.html` / `popup.js` | Toolbar popup (video list, progress) |
+| `extension/collect.js` | Collects video pages from a listing page |
+| `src/offscreen/main.js` | HLS/DASH → MP4 with Mediabunny, written to OPFS |
+| `src/offscreen/dash.js` | Turns an MPD into virtual HLS playlists for Mediabunny (mpd-parser) |
+| `src/offscreen/youtube.js` | YouTube via youtubei.js: formats, signature/n deciphering, ranged downloads, merge (live: the ANDROID client's HLS) |
+| `src/offscreen/youtube-live.js` | YouTube live from the start, like yt-dlp's `--live-from-start` (DASH segments by sequence number) |
+| `src/sandbox/main.js` | Sandbox page where eval is allowed (runs YouTube's player JS for deciphering) |
+| `scripts/build.mjs` | Builds the full and store editions |
 
-使用ライブラリ: [Mediabunny](https://mediabunny.dev)（MPL-2.0）、[mpd-parser](https://github.com/videojs/mpd-parser)、[mux.js](https://github.com/videojs/mux.js)（sidx 解析のみ）、[youtubei.js](https://github.com/LuanRT/YouTube.js)、[googlevideo](https://github.com/LuanRT/googlevideo)（プレーヤーのリクエストから PO トークンを読む）。
+Libraries: [Mediabunny](https://mediabunny.dev) (MPL-2.0), [mpd-parser](https://github.com/videojs/mpd-parser) and [mux.js](https://github.com/videojs/mux.js) (Apache-2.0; mux.js only for sidx parsing), [youtubei.js](https://github.com/LuanRT/YouTube.js) and [googlevideo](https://github.com/LuanRT/googlevideo) (MIT; googlevideo reads the PO token from the player's requests). Each build writes `dist/THIRD_PARTY_LICENSES.txt` with the license of every bundled package.
 
-## 非対応
+## Not supported
 
-- DRM（Widevine / FairPlay / PlayReady、SAMPLE-AES、CENC）— 検出したら中止する
-- 過去にさかのぼれない（DVR が無効な）YouTube のライブ配信を、さかのぼって録画すること
-- 広告挿入などで途中から音声の形式が変わるストリームは、その区間の音声が乱れることがある（1 本の音声トラックにしか入れられないため）
-- VP9 / AV1 の MP4 は QuickTime では再生できないことがある（Chrome・VLC・IINA では再生可）
+- DRM (Widevine / FairPlay / PlayReady, SAMPLE-AES, CENC): detected and refused
+- Rewinding YouTube live streams that have DVR disabled
+- Streams whose audio format changes midway (e.g. inserted ads) may have garbled audio in that section, since everything goes into one audio track
+- VP9 / AV1 in MP4 may not play in QuickTime (Chrome, VLC and IINA play it)
+
+## License
+
+[MIT](LICENSE). Bundled third-party packages keep their own licenses; see `dist/THIRD_PARTY_LICENSES.txt` in a build.

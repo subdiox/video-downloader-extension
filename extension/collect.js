@@ -1,6 +1,7 @@
-// Injected on "このページの動画を全部ダウンロード": treats the current page as a
-// listing (favorites, search results, uploads…), follows its pagination,
-// opens every linked video page and queues the best plain video file of each.
+// Injected by the popup's "download every linked video" button: treats the
+// current page as a listing (favorites, search results, uploads…), follows
+// its pagination, opens every linked video page and queues the best plain
+// video file of each.
 // Works for sites that put the video URL in the page HTML (<video>/<source>,
 // og:video); streaming-only (blob:) players are skipped.
 
