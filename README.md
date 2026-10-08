@@ -94,7 +94,9 @@ Tested by hand (October 2026). Other sites using the same kinds of players usual
 
 ## Not supported
 
-- DRM (Widevine / FairPlay / PlayReady, SAMPLE-AES, CENC): detected and refused
+- DRM (Widevine / FairPlay / PlayReady, SAMPLE-AES, CENC): detected and refused. This rules out, for example:
+  - ABEMA (checked)
+  - Netflix, Amazon Prime Video, Disney+, Hulu, U-NEXT, DAZN, Apple TV+, Lemino, FOD, Crunchyroll (known to use DRM; not tried)
 - Rewinding YouTube live streams that have DVR disabled
 - Streams whose audio format changes midway (e.g. inserted ads) may have garbled audio in that section, since everything goes into one audio track
 
