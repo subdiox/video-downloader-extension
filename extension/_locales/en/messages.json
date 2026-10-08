@@ -220,7 +220,7 @@
     "message": "Loading…"
   },
   "unsupportedYouTube": {
-    "message": "YouTube isn't supported (Chrome Web Store policy).",
+    "message": "YouTube isn't supported due to Chrome Web Store policy.",
     "description": "Shown on YouTube pages in the Chrome Web Store edition"
   },
   "unavailable": {

@@ -199,7 +199,7 @@
     "message": "読み込み中…"
   },
   "unsupportedYouTube": {
-    "message": "YouTubeには対応していません（Chrome Web Storeの規約による）"
+    "message": "YouTubeには対応していません（Chrome ウェブストアのポリシーにより）"
   },
   "unavailable": {
     "message": "このページでは使えません"
